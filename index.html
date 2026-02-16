@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Developer Tools</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text-color: #e2e8f0;
+            --accent-color: #38bdf8;
+            --accent-hover: #0ea5e9;
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            width: 100%;
+            padding: 2rem 0;
+            text-align: center;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 2rem;
+            padding-bottom: 4rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+            border-color: var(--accent-color);
+        }
+
+        .card h2 {
+            margin-top: 0;
+            color: var(--accent-color);
+            font-size: 1.5rem;
+        }
+
+        .card p {
+            line-height: 1.6;
+            color: #cbd5e1;
+        }
+
+        .card-footer {
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+        }
+
+        .arrow {
+            margin-left: auto;
+            color: var(--accent-color);
+            font-weight: bold;
+        }
+    </style>
+</head>
+body>
+<header>
+    <h1>My Developer Tools</h1>
+    <p>A collection of useful utilities and applications.</p>
+</header>
+
+<div class="container">
+    <!-- Card 1: Secure Password Generator -->
+    <a href="./generatePassWd/index.html" class="card">
+        <div>
+            <h2>Secure Password Generator</h2>
+            <p>Generate strong, memorable passwords using real-time headlines from Google News. Features mnemonic
+                extraction and secure local processing.</p>
+        </div>
+        <div class="card-footer">
+            <span>Updated: 2026-02-16</span>
+            <span class="arrow">Launch &rarr;</span>
+        </div>
+    </a>
+
+    <!-- Placeholder for future tools -->
+    <!-- 
+        <a href="#" class="card" style="opacity: 0.5; pointer-events: none;">
+            <div>
+                <h2>Coming Soon</h2>
+                <p>More tools will be added here.</p>
+            </div>
+        </a> 
+        -->
+</div>
+</body>
+
+</html>
