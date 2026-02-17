@@ -4,6 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
     <title>My Developer Tools</title>
     <style>
         :root {
@@ -117,6 +119,19 @@ body>
         </div>
         <div class="card-footer">
             <span>Updated: 2026-02-16</span>
+            <span class="arrow">Launch &rarr;</span>
+        </div>
+    </a>
+
+    <!-- Card 2: Web Page to Email -->
+    <a href="./webPageByEmail/index.html" class="card">
+        <div>
+            <h2>Web Page to Email</h2>
+            <p>Capture web page content with formatting preserves and send it via your local email client.
+                Feature smart clipboard integration.</p>
+        </div>
+        <div class="card-footer">
+            <span>New Feature</span>
             <span class="arrow">Launch &rarr;</span>
         </div>
     </a>

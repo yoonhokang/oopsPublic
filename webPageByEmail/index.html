@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' 'unsafe-inline'; connect-src 'self' https://api.allorigins.win https://corsproxy.io https://api.codetabs.com; img-src * data:;">
+    <title>Web Page to Email</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text-color: #e2e8f0;
+            --accent-color: #f43f5e;
+            /* Rose color for this tool */
+            --accent-hover: #fb7185;
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(244, 63, 94, 0.1) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(251, 113, 133, 0.1) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(244, 63, 94, 0.1) 0px, transparent 50%),
+                radial-gradient(at 0% 100%, rgba(251, 113, 133, 0.1) 0px, transparent 50%);
+            font-family: var(--font-family);
+            color: var(--text-color);
+            overflow-x: hidden;
+        }
+
+        .container {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 600px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease;
+        }
+
+        h1 {
+            margin: 0 0 1.5rem 0;
+            font-size: 1.875rem;
+            font-weight: 700;
+            text-align: center;
+            background: linear-gradient(to right, #f43f5e, #fb7185);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.025em;
+        }
+
+        .description {
+            text-align: center;
+            color: #94a3b8;
+            margin-bottom: 2rem;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .input-group {
+            margin-bottom: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #cbd5e1;
+            margin-left: 0.25rem;
+        }
+
+        input[type="url"] {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 1rem;
+            color: white;
+            font-size: 1rem;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        input[type="url"]:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.2);
+        }
+
+        button.action-btn {
+            width: 100%;
+            background: linear-gradient(135deg, var(--accent-color), #e11d48);
+            border: none;
+            border-radius: 10px;
+            padding: 1rem;
+            color: white;
+            font-weight: 600;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        button.action-btn:hover {
+            opacity: 0.95;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
+        button.action-btn:active {
+            transform: translateY(0);
+        }
+
+        button.action-btn:disabled {
+            background: #475569;
+            cursor: not-allowed;
+            transform: none;
+            opacity: 0.7;
+        }
+
+        .status-message {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: 8px;
+            display: none;
+            text-align: center;
+            font-size: 0.95rem;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .status-success {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #34d399;
+        }
+
+        .status-error {
+            background: rgba(244, 63, 94, 0.2);
+            border: 1px solid rgba(244, 63, 94, 0.3);
+            color: #fda4af;
+        }
+
+        .loading-spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid #ffffff;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .tips {
+            margin-top: 2rem;
+            font-size: 0.85rem;
+            color: #64748b;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: left;
+        }
+
+        .tips ul {
+            margin: 0.5rem 0 0 0;
+            padding-left: 1.25rem;
+        }
+
+        .tips li {
+            margin-bottom: 0.25rem;
+        }
+
+        /* Debug UI Styles */
+        .debug-section {
+            margin-top: 2rem;
+            text-align: left;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 1.5rem;
+        }
+
+        .debug-title {
+            color: #94a3b8;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .console-box {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 1rem;
+            height: 150px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+            color: #cbd5e1;
+            margin-bottom: 1.5rem;
+            white-space: pre-wrap;
+        }
+
+        .log-entry {
+            margin-bottom: 0.25rem;
+        }
+
+        .log-time {
+            color: #64748b;
+            margin-right: 0.5rem;
+        }
+
+        .log-info {
+            color: #cbd5e1;
+        }
+
+        .log-warn {
+            color: #facc15;
+        }
+
+        .log-error {
+            color: #f87171;
+        }
+
+        .log-success {
+            color: #34d399;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>Web Page to Email</h1>
+        <p class="description">
+            Capture a web page with its formatting enabled and prepare it for email transmission.<br>
+            Enter a URL below to start.
+        </p>
+
+        <div class="input-group">
+            <label for="urlInput">Target URL</label>
+            <input type="url" id="urlInput" placeholder="https://example.com/article" required>
+        </div>
+
+        <button class="action-btn" id="sendBtn" onclick="processAndSend()">
+            <span>Capture & Open Email</span>
+        </button>
+
+        <div id="statusArea" class="status-message"></div>
+
+        <div class="tips">
+            <strong>📧 How it works:</strong>
+            <ul>
+                <li>Because of email security standards, we cannot auto-paste HTML.</li>
+                <li>We will <strong>Fetch</strong> the page, <strong>Copy</strong> it to your clipboard.</li>
+                <li>Your email client will open automatically.</li>
+                <li>Simply press <strong>Ctrl + V</strong> (Paste) in the email body.</li>
+            </ul>
+        </div>
+
+        <!-- Debug Section -->
+        <div class="debug-section">
+            <div class="debug-title">Debug Console</div>
+            <div class="console-box" id="debugConsole"></div>
+        </div>
+    </div>
+
+    <script>
+        const statusArea = document.getElementById('statusArea');
+        const sendBtn = document.getElementById('sendBtn');
+        const urlInput = document.getElementById('urlInput');
+        const debugConsole = document.getElementById('debugConsole');
+
+        // Logging function
+        function log(msg, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">[${time}]</span><span class="log-${type}">${msg}</span>`;
+            debugConsole.appendChild(entry);
+            debugConsole.scrollTop = debugConsole.scrollHeight;
+
+            // Also log to browser console
+            if (type === 'error') console.error(msg);
+            else if (type === 'warn') console.warn(msg);
+            else console.log(msg);
+        }
+
+        function showStatus(message, type = 'info') {
+            statusArea.style.display = 'block';
+            statusArea.innerHTML = message;
+
+            statusArea.className = 'status-message'; // reset
+            if (type === 'success') statusArea.classList.add('status-success');
+            if (type === 'error') statusArea.classList.add('status-error');
+        }
+
+        function setLoading(isLoading) {
+            if (isLoading) {
+                sendBtn.disabled = true;
+                sendBtn.innerHTML = '<div class="loading-spinner"></div><span>Processing...</span>';
+            } else {
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '<span>Capture & Open Email</span>';
+            }
+        }
+
+        function cleanHtml(htmlString, baseUrl) {
+            log("Cleaning HTML...", 'info');
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlString, 'text/html');
+
+            // 1. Base URL adjustment for relative links/images
+            const base = document.createElement('base');
+            base.href = baseUrl;
+            doc.head.appendChild(base);
+
+            // 2. Remove Scripts and dangerous elements
+            const elementsToRemove = doc.querySelectorAll('script, iframe, object, embed, form, button, nav, footer, style, link[rel="stylesheet"]');
+            elementsToRemove.forEach(el => el.remove());
+
+            // 2.1 Security hardening: Remove event handlers and javascript: links
+            // Walk through all elements
+            const allElements = doc.querySelectorAll('*');
+            allElements.forEach(el => {
+                // Remove on<event> attributes
+                for (let i = el.attributes.length - 1; i >= 0; i--) {
+                    const attr = el.attributes[i];
+                    if (attr.name.startsWith('on')) {
+                        el.removeAttribute(attr.name);
+                    }
+                }
+                // Check for javascript: protocol in href/src
+                if (el.hasAttribute('href') && el.getAttribute('href').trim().toLowerCase().startsWith('javascript:')) {
+                    el.removeAttribute('href');
+                }
+                if (el.hasAttribute('src') && el.getAttribute('src').trim().toLowerCase().startsWith('javascript:')) {
+                    el.removeAttribute('src');
+                }
+            });
+
+            // 3. Resolve relative URLs to absolute (Critical for email)
+            doc.querySelectorAll('img').forEach(img => {
+                try {
+                    img.src = new URL(img.getAttribute('src'), baseUrl).href;
+                } catch (e) { }
+            });
+            doc.querySelectorAll('a').forEach(a => {
+                try {
+                    a.href = new URL(a.getAttribute('href'), baseUrl).href;
+                } catch (e) { }
+            });
+
+            // 5. Wrap in a container to ensure some basic styling reset if needed
+            return `
+                <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto;">
+                    <p style="font-size: 0.8em; color: #666; border-bottom: 1px solid #ccc; padding-bottom: 5px;">
+                        Source: <a href="${baseUrl}">${baseUrl}</a>
+                    </p>
+                    ${doc.body.innerHTML}
+                </div>
+            `;
+        }
+
+        // Implementation of Multi-Proxy Strategy
+        async function fetchWithFallback(targetUrl) {
+            const proxies = [
+                // 1. AllOrigins (Returns JSON with 'contents')
+                {
+                    name: 'AllOrigins',
+                    url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`,
+                    type: 'json'
+                },
+                // 2. CorsProxy.io (Direct HTML)
+                {
+                    name: 'CorsProxy.io',
+                    url: `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+                    type: 'html'
+                },
+                // 3. CodeTabs (Direct HTML)
+                {
+                    name: 'CodeTabs',
+                    url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
+                    type: 'html'
+                }
+            ];
+
+            let lastError = null;
+
+            for (const proxy of proxies) {
+                try {
+                    log(`Trying Proxy: ${proxy.name} ...`, 'info');
+                    const response = await fetch(proxy.url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                    let content = "";
+                    if (proxy.type === 'json') {
+                        const data = await response.json();
+                        content = data.contents;
+                    } else {
+                        content = await response.text();
+                    }
+
+                    if (!content || content.length < 50) { // Basic validation
+                        throw new Error("Empty or invalid content");
+                    }
+
+                    log(`Proxy ${proxy.name} Success. Content length: ${content.length}`, 'success');
+                    return content; // Success!
+
+                } catch (error) {
+                    log(`Proxy ${proxy.name} failed: ${error.message}`, 'warn');
+                    lastError = error;
+                    // Continue to next proxy
+                }
+            }
+
+            log("All proxies exhausted.", 'error');
+            throw new Error("All proxies failed. The site might be blocking access.");
+        }
+
+        async function processAndSend() {
+            const url = urlInput.value.trim();
+
+            if (!url) {
+                showStatus("Please enter a valid URL.", "error");
+                return;
+            }
+
+            if (!url.startsWith('http')) {
+                showStatus("URL must start with http:// or https://", "error");
+                return;
+            }
+
+            // Clear logs on new attempt
+            debugConsole.innerHTML = '';
+
+            setLoading(true);
+            showStatus("Fetching web page content (trying multiple proxies)...", "info");
+            log(`Starting capture for: ${url}`, 'info');
+
+            try {
+                // Fetch using Fallback Logic
+                const rawHtml = await fetchWithFallback(url);
+                const cleanedHtml = cleanHtml(rawHtml, url);
+
+                // Copy to Clipboard
+                // We write both plain text and HTML types.
+                const blobHtml = new Blob([cleanedHtml], { type: "text/html" });
+                const blobText = new Blob([url], { type: "text/plain" });
+
+                const clipboardItem = new ClipboardItem({
+                    "text/html": blobHtml,
+                    "text/plain": blobText,
+                });
+
+                await navigator.clipboard.write([clipboardItem]);
+
+                log("Content copied to clipboard.", 'success');
+
+                showStatus(`
+                    <strong>Success! Content Copied.</strong><br>
+                    Email client opening...<br>
+                    Press <strong>Ctrl+V</strong> in the email body to paste the web page.
+                `, "success");
+
+                // Open Mailto
+                // Note: We cannot put HTML in body, so we put a placeholder.
+                const subject = `Web Page: ${new URL(url).hostname}`;
+                const body = `[Past the web page content here using Ctrl+V]\n\nOriginal URL: ${url}`;
+
+                // Slight delay to allow UI to update
+                setTimeout(() => {
+                    log("Opening mailto link...", 'info');
+                    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                }, 500);
+
+            } catch (error) {
+                console.error(error);
+                log(`Process failed: ${error.message}`, 'error');
+                showStatus(`Error: ${error.message}<br>Try a different URL or check your connection.`, "error");
+            } finally {
+                setLoading(false);
+            }
+        }
+    </script>
+</body>
+
+</html>
