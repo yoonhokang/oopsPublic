@@ -536,7 +536,7 @@
                 // Open Mailto
                 // Note: We cannot put HTML in body, so we put a placeholder.
                 const subject = `Web Page: ${new URL(url).hostname}`;
-                const body = `[Past the web page content here using Ctrl+V]\n\nOriginal URL: ${url}`;
+                const body = `Original URL: ${url}\n\n\n\n[Paste the web page content here using Ctrl+V]\n`;
 
                 // Slight delay to allow UI to update
                 setTimeout(() => {
