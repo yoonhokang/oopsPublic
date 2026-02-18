@@ -1,24 +1,36 @@
-/**
- * Password Generator - Main Logic
- * 
- * Generates secure passwords using News Headlines or Internal Pools.
- * Uses adaptive initials extraction.
- */
-
+// Restored Log Function
 const debugConsole = document.getElementById('debugConsole');
 
-// Logging function
-function log(msg, type = 'info') {
-    if (!debugConsole) return;
-    const time = new Date().toLocaleTimeString();
+function log(message, type = 'info') {
     const entry = document.createElement('div');
-    entry.className = 'log-entry';
-    entry.innerHTML = `<span class="log-time">[${time}]</span><span class="log-${type}">${msg}</span>`;
-    debugConsole.appendChild(entry);
-    debugConsole.scrollTop = debugConsole.scrollHeight;
+    entry.className = `log-entry log-${type}`;
+
+    const time = new Date().toLocaleTimeString([], { hour12: false });
+    entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+
+    if (debugConsole) {
+        debugConsole.appendChild(entry);
+        debugConsole.scrollTop = debugConsole.scrollHeight;
+    }
+    console.log(`[${type.toUpperCase()}] ${message}`);
 }
 
-// Character Sets
+// Auth Listener for Header UI
+if (firebase.auth) {
+    firebase.auth().onAuthStateChanged((user) => {
+        console.log("AuthStateChanged:", user ? user.email : "No User");
+        renderAuthUI(user);
+
+        if (!user) {
+            // Strict Auth Redirect
+            window.location.replace("../index.html");
+        }
+    });
+} else {
+    console.error("firebase.auth not available!");
+}
+
+// Character Sets (No longer directly used for generation, but kept for reference if needed)
 const CHARS = {
     upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
     lower: 'abcdefghijklmnopqrstuvwxyz',
