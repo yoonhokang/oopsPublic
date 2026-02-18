@@ -19,7 +19,36 @@ const firebaseConfig = {
 // Initialize Firebase if not already initialized
 if (typeof firebase !== 'undefined' && !firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
-    console.log("Firebase initialized via public config.");
+
+    // Force Long Polling (Critical for restrictive networks)
+    const db = firebase.firestore();
+    db.settings({ experimentalForceLongPolling: true });
+
+    console.log("Firebase initialized via public config (Long Polling enabled).");
 } else if (typeof firebase === 'undefined') {
     console.error("Firebase SDK not loaded. Cannot initialize.");
+}
+
+// Build Version Display
+const BUILD_INFO = {
+    version: "v1.0.28",
+    date: "2026-02-18 23:50 KST"
+};
+
+if (typeof document !== 'undefined') {
+    window.addEventListener('DOMContentLoaded', () => {
+        const verDiv = document.createElement('div');
+        verDiv.id = 'buildVersionDisplay';
+        verDiv.style.position = "fixed";
+        verDiv.style.bottom = "5px";
+        verDiv.style.right = "10px";
+        verDiv.style.color = "rgba(255, 255, 255, 0.4)";
+        verDiv.style.fontSize = "11px";
+        verDiv.style.zIndex = "9999";
+        verDiv.style.pointerEvents = "none";
+        verDiv.style.fontFamily = "monospace";
+        verDiv.textContent = `Build: ${BUILD_INFO.version} (${BUILD_INFO.date})`;
+        document.body.appendChild(verDiv);
+        console.log(`Build Version: ${BUILD_INFO.version} (${BUILD_INFO.date})`);
+    });
 }
