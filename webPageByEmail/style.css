@@ -1,0 +1,272 @@
+/*
+ * Web Page to Email - Specific Styles
+ * Overrides and extends common styles.
+ */
+
+:root {
+    /* Override accent color to Rose */
+    --accent-color: #f43f5e;
+    --accent-hover: #fb7185;
+}
+
+body {
+    /* Specific background pattern */
+    background-image:
+        radial-gradient(at 0% 0%, rgba(244, 63, 94, 0.1) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(251, 113, 133, 0.1) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(244, 63, 94, 0.1) 0px, transparent 50%),
+        radial-gradient(at 0% 100%, rgba(251, 113, 133, 0.1) 0px, transparent 50%);
+    overflow-x: hidden;
+}
+
+/* Container Override */
+.container {
+    display: block;
+    /* Reset grid from common if needed, though common uses specific class */
+    padding: 2.5rem;
+    max-width: 600px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    margin-top: 2rem;
+    /* Add some top margin */
+}
+
+h1 {
+    font-size: 1.875rem;
+    background: linear-gradient(to right, #f43f5e, #fb7185);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 1.5rem;
+}
+
+.description {
+    text-align: center;
+    color: #94a3b8;
+    margin-bottom: 2rem;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.input-group {
+    margin-bottom: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #cbd5e1;
+    margin-left: 0.25rem;
+}
+
+input[type="url"] {
+    width: 100%;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 1rem;
+    color: white;
+    font-size: 1rem;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input[type="url"]:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.2);
+}
+
+button.action-btn {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent-color), #e11d48);
+    border: none;
+    border-radius: 10px;
+    padding: 1rem;
+    color: white;
+    font-weight: 600;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+button.action-btn:hover {
+    opacity: 0.95;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+}
+
+button.action-btn:active {
+    transform: translateY(0);
+}
+
+button.action-btn:disabled {
+    background: #475569;
+    cursor: not-allowed;
+    transform: none;
+    opacity: 0.7;
+}
+
+.status-message {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    border-radius: 8px;
+    display: none;
+    text-align: center;
+    font-size: 0.95rem;
+    animation: fadeIn 0.3s ease;
+}
+
+.status-success {
+    background: rgba(16, 185, 129, 0.2);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #34d399;
+}
+
+.status-error {
+    background: rgba(244, 63, 94, 0.2);
+    border: 1px solid rgba(244, 63, 94, 0.3);
+    color: #fda4af;
+}
+
+.loading-spinner {
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top: 3px solid #ffffff;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.tips {
+    margin-top: 2rem;
+    font-size: 0.85rem;
+    color: #64748b;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 1rem;
+    border-radius: 8px;
+    text-align: left;
+}
+
+.tips ul {
+    margin: 0.5rem 0 0 0;
+    padding-left: 1.25rem;
+}
+
+.tips li {
+    margin-bottom: 0.25rem;
+}
+
+/* Debug UI Styles */
+.debug-section {
+    margin-top: 2rem;
+    text-align: left;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 1.5rem;
+}
+
+.debug-title {
+    color: #94a3b8;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+}
+
+.console-box {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 1rem;
+    height: 150px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.85rem;
+    color: #cbd5e1;
+    margin-bottom: 1.5rem;
+    white-space: pre-wrap;
+}
+
+.log-entry {
+    margin-bottom: 0.25rem;
+}
+
+.log-time {
+    color: #64748b;
+    margin-right: 0.5rem;
+}
+
+.log-info {
+    color: #cbd5e1;
+}
+
+.log-warn {
+    color: #facc15;
+}
+
+.log-error {
+    color: #f87171;
+}
+
+.log-success {
+    color: #34d399;
+}
+
+/* Back Button Styles */
+.back-btn {
+    position: absolute;
+    top: 1.5rem;
+    left: 1.5rem;
+    color: var(--text-color);
+    text-decoration: none;
+    font-weight: 500;
+    opacity: 0.7;
+    transition: opacity 0.2s, color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    z-index: 100;
+}
+
+.back-btn:hover {
+    opacity: 1;
+    color: var(--accent-color);
+}
+
+@media (max-width: 600px) {
+    .back-btn {
+        top: 1rem;
+        left: 1rem;
+        font-size: 0.85rem;
+    }
+}

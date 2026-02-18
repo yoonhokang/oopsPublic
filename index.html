@@ -5,112 +5,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+        content="default-src 'self' https://*.firebaseio.com https://*.googleapis.com; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://*.firebaseio.com https://*.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://*.googleusercontent.com https://via.placeholder.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com;">
     <title>My Developer Tools</title>
-    <style>
-        :root {
-            --bg-color: #0f172a;
-            --card-bg: rgba(30, 41, 59, 0.7);
-            --text-color: #e2e8f0;
-            --accent-color: #38bdf8;
-            --accent-hover: #0ea5e9;
-            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        }
 
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: var(--font-family);
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
+    <!-- External Styles -->
+    <link rel="stylesheet" href="./css/style.css">
 
-        header {
-            width: 100%;
-            padding: 2rem 0;
-            text-align: center;
-            background: rgba(15, 23, 42, 0.8);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            margin-bottom: 2rem;
-        }
+    <!-- Firebase SDKs (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
-        h1 {
-            margin: 0;
-            font-size: 2.5rem;
-            background: linear-gradient(to right, #38bdf8, #818cf8);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .container {
-            width: 90%;
-            max-width: 1200px;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 2rem;
-            padding-bottom: 4rem;
-        }
-
-        .card {
-            background: var(--card-bg);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 1rem;
-            padding: 1.5rem;
-            transition: transform 0.2s, box-shadow 0.2s;
-            cursor: pointer;
-            text-decoration: none;
-            color: inherit;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-            border-color: var(--accent-color);
-        }
-
-        .card h2 {
-            margin-top: 0;
-            color: var(--accent-color);
-            font-size: 1.5rem;
-        }
-
-        .card p {
-            line-height: 1.6;
-            color: #cbd5e1;
-        }
-
-        .card-footer {
-            margin-top: 1rem;
-            font-size: 0.9rem;
-            color: #94a3b8;
-            display: flex;
-            align-items: center;
-        }
-
-        .arrow {
-            margin-left: auto;
-            color: var(--accent-color);
-            font-weight: bold;
-        }
-    </style>
+    <!-- Global Scripts -->
+    <script src="./js/firebase-config.js"></script>
+    <script src="./js/auth.js"></script>
 </head>
 
 <body>
-    <header>
+    <header class="landing-header">
+        <div id="authContainer" class="auth-container">
+            <!-- Injected by auth.js -->
+        </div>
         <h1>My Developer Tools</h1>
         <p>A collection of useful utilities and applications.</p>
     </header>
 
-    <div class="container">
+    <div class="landing-container">
         <!-- Card 1: Secure Password Generator -->
         <a href="./generatePassWd/index.html" class="card">
             <div>
@@ -136,17 +55,40 @@
                 <span class="arrow">Launch &rarr;</span>
             </div>
         </a>
-
-        <!-- Placeholder for future tools -->
-        <!-- 
-        <a href="#" class="card" style="opacity: 0.5; pointer-events: none;">
-            <div>
-                <h2>Coming Soon</h2>
-                <p>More tools will be added here.</p>
-            </div>
-        </a> 
-        -->
     </div>
+
+    <script>
+        /**
+         * Main Root Script
+         * Initializes auth listener for the landing page.
+         */
+
+        // Listen for auth state changes to update UI
+        if (firebase.auth) {
+            firebase.auth().onAuthStateChanged((user) => {
+                renderAuthUI(user);
+            });
+        }
+
+        // Auth Guard for Navigation Cards
+        document.addEventListener('DOMContentLoaded', () => {
+            const cards = document.querySelectorAll('.card');
+            cards.forEach(card => {
+                card.addEventListener('click', (e) => {
+                    const user = firebase.auth().currentUser;
+                    // Note: currentUser might be null on initial load before auth is ready.
+                    // This is acceptable as a secure default (fail-safe).
+                    // As soon as onAuthStateChanged fires, currentUser *should* be available if logged in,
+                    // but strictly checking currentUser here is safest.
+
+                    if (!user) {
+                        e.preventDefault(); // Stop navigation
+                        alert("로그인이 필요한 서비스입니다.\n우측 상단의 버튼을 눌러 로그인해주세요.\n(Services require login. Please sign in first.)");
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 
 </html>

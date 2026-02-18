@@ -5,50 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self' 'unsafe-inline'; connect-src 'self' https://api.allorigins.win https://corsproxy.io https://api.codetabs.com; img-src * data:;">
+        content="default-src 'self' 'unsafe-inline' https://*.googleapis.com https://*.gstatic.com https://*.firebaseapp.com https://*.firebaseio.com; connect-src 'self' https://api.allorigins.win https://corsproxy.io https://api.codetabs.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://*.firebaseio.com; img-src * data:; frame-src https://*.firebaseapp.com;">
     <title>Web Page to Email</title>
     <style>
-        :root {
-            --bg-color: #0f172a;
-            --card-bg: rgba(30, 41, 59, 0.7);
-            --text-color: #e2e8f0;
-            --accent-color: #f43f5e;
-            /* Rose color for this tool */
-            --accent-hover: #fb7185;
-            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        }
-
-        body {
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background-color: var(--bg-color);
-            background-image:
-                radial-gradient(at 0% 0%, rgba(244, 63, 94, 0.1) 0px, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(251, 113, 133, 0.1) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(244, 63, 94, 0.1) 0px, transparent 50%),
-                radial-gradient(at 0% 100%, rgba(251, 113, 133, 0.1) 0px, transparent 50%);
-            font-family: var(--font-family);
-            color: var(--text-color);
-            overflow-x: hidden;
-        }
-
-        .container {
-            background: var(--card-bg);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            padding: 2.5rem;
-            width: 100%;
-            max-width: 600px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            transition: transform 0.3s ease;
-        }
-
+        /* :root and body styles removed to use style.css defaults */
+        /* Local overrides if needed */
         h1 {
             margin: 0 0 1.5rem 0;
             font-size: 1.875rem;
@@ -208,61 +169,6 @@
             margin-bottom: 0.25rem;
         }
 
-        /* Debug UI Styles */
-        .debug-section {
-            margin-top: 2rem;
-            text-align: left;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            padding-top: 1.5rem;
-        }
-
-        .debug-title {
-            color: #94a3b8;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 0.5rem;
-        }
-
-        .console-box {
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-            padding: 1rem;
-            height: 150px;
-            overflow-y: auto;
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 0.85rem;
-            color: #cbd5e1;
-            margin-bottom: 1.5rem;
-            white-space: pre-wrap;
-        }
-
-        .log-entry {
-            margin-bottom: 0.25rem;
-        }
-
-        .log-time {
-            color: #64748b;
-            margin-right: 0.5rem;
-        }
-
-        .log-info {
-            color: #cbd5e1;
-        }
-
-        .log-warn {
-            color: #facc15;
-        }
-
-        .log-error {
-            color: #f87171;
-        }
-
-        .log-success {
-            color: #34d399;
-        }
-
         /* Back Button Styles */
         .back-btn {
             position: absolute;
@@ -293,13 +199,26 @@
             }
         }
     </style>
+    <!-- Firebase SDKs (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <!-- Shared Assets -->
+    <link rel="stylesheet" href="../css/style.css">
+    <script src="../js/firebase-config.js"></script>
+    <script src="../js/auth.js"></script>
 </head>
 
 <body>
 
-    <a href="../index.html" class="back-btn">&larr; Home</a>
+    <header
+        style="display: flex; justify-content: space-between; padding: 1.5rem; align-items: center; max-width: 1200px; margin: 0 auto; width: 100%; box-sizing: border-box;">
+        <a href="../index.html" class="back-btn" style="position: static;">&larr; Home</a>
+        <div id="authContainer" class="auth-container"></div>
+    </header>
 
-    <div class="container">
+    <div class="tool-container">
         <h1>Web Page to Email</h1>
         <p class="description">
             Capture a web page with its formatting enabled and prepare it for email transmission.<br>
@@ -308,17 +227,33 @@
 
         <div class="input-group">
             <label for="urlInput">Target URL</label>
-            <input type="url" id="urlInput" placeholder="https://example.com/article" required>
+            <input type="text" id="urlInput" placeholder="https://example.com/article">
+
+            <div class="button-group">
+                <button id="sendBtn" class="action-btn" onclick="processAndSend()">Capture & Email</button>
+                <button id="saveBtn" class="action-btn"
+                    style="background: linear-gradient(135deg, #64748b, #475569); margin-top: 10px;"
+                    onclick="saveToBoard()">Save to Board</button>
+            </div>
         </div>
 
-        <button class="action-btn" id="sendBtn" onclick="processAndSend()">
-            <span>Capture & Open Email</span>
-        </button>
+        <div id="statusArea"></div>
 
-        <div id="statusArea" class="status-message"></div>
+        <!-- Restored Debug Console -->
+        <div class="debug-section">
+            <div class="debug-title">Processing Log</div>
+            <div id="debugConsole" class="console-box"></div>
+        </div>
 
-        <div class="tips">
-            <strong>📧 How it works:</strong>
+        <div id="boardSection" class="board-section"
+            style="margin-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+            <h3>My Saved Posts (Recent 10)</h3>
+            <ul id="postList" style="list-style: none; padding: 0; margin: 0;">Loading...</ul>
+        </div>
+
+        <div class="info-box"
+            style="margin-top: 2rem; font-size: 0.85rem; color: #64748b; background: rgba(0, 0, 0, 0.2); padding: 1rem; border-radius: 8px;">
+            <p>📷 <strong>How it works:</strong></p>
             <ul>
                 <li>Because of email security standards, we cannot auto-paste HTML.</li>
                 <li>We will <strong>Fetch</strong> the page, <strong>Copy</strong> it to your clipboard.</li>
@@ -326,33 +261,47 @@
                 <li>Simply press <strong>Ctrl + V</strong> (Paste) in the email body.</li>
             </ul>
         </div>
-
-        <!-- Debug Section -->
-        <div class="debug-section">
-            <div class="debug-title">Debug Console</div>
-            <div class="console-box" id="debugConsole"></div>
-        </div>
     </div>
 
     <script>
+        // Firebase Logic handled by ../js/firebase-config.js
+
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        let currentUser = null;
+
+        // Auth Guard & UI
+        auth.onAuthStateChanged(user => {
+            console.log("AuthStateChanged:", user ? user.email : "No User");
+
+            renderAuthUI(user);
+
+            if (!user) {
+                // Strict Auth Redirect
+                window.location.replace("../index.html");
+            } else {
+                currentUser = user;
+                loadPosts();
+            }
+        });
+
         const statusArea = document.getElementById('statusArea');
         const sendBtn = document.getElementById('sendBtn');
         const urlInput = document.getElementById('urlInput');
         const debugConsole = document.getElementById('debugConsole');
 
-        // Logging function
-        function log(msg, type = 'info') {
-            const time = new Date().toLocaleTimeString();
+        function log(message, type = 'info') {
             const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.innerHTML = `<span class="log-time">[${time}]</span><span class="log-${type}">${msg}</span>`;
-            debugConsole.appendChild(entry);
-            debugConsole.scrollTop = debugConsole.scrollHeight;
+            entry.className = `log-entry log-${type}`;
 
-            // Also log to browser console
-            if (type === 'error') console.error(msg);
-            else if (type === 'warn') console.warn(msg);
-            else console.log(msg);
+            const time = new Date().toLocaleTimeString([], { hour12: false });
+            entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+
+            if (debugConsole) {
+                debugConsole.appendChild(entry);
+                debugConsole.scrollTop = debugConsole.scrollHeight;
+            }
+            console.log(`[${type.toUpperCase()}] ${message}`);
         }
 
         function showStatus(message, type = 'info') {
@@ -370,7 +319,7 @@
                 sendBtn.innerHTML = '<div class="loading-spinner"></div><span>Processing...</span>';
             } else {
                 sendBtn.disabled = false;
-                sendBtn.innerHTML = '<span>Capture & Open Email</span>';
+                sendBtn.innerHTML = '<span>Capture & Email</span>';
             }
         }
 
@@ -502,7 +451,7 @@
             }
 
             // Clear logs on new attempt
-            debugConsole.innerHTML = '';
+            if (debugConsole) debugConsole.innerHTML = '';
 
             setLoading(true);
             showStatus("Fetching web page content (trying multiple proxies)...", "info");
@@ -552,7 +501,92 @@
                 setLoading(false);
             }
         }
+
+        async function saveToBoard() {
+            const url = urlInput.value.trim();
+            if (!url) {
+                showStatus("Please enter a valid URL.", "error");
+                return;
+            }
+            if (!url.startsWith('http')) {
+                showStatus("URL must start with http:// or https://", "error");
+                return;
+            }
+
+            // Disable buttons
+            document.getElementById('saveBtn').disabled = true;
+            document.getElementById('saveBtn').innerHTML = '<div class="loading-spinner"></div>';
+
+            log(`Starting save for: ${url}`, 'info');
+
+            try {
+                // Reuse existing fetch logic
+                const rawHtml = await fetchWithFallback(url);
+                const cleanedHtml = cleanHtml(rawHtml, url);
+
+                // Extract Title
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(rawHtml, "text/html");
+                const pageTitle = (doc.querySelector('title') ? doc.querySelector('title').innerText : url) || "Untitled Page";
+
+                // Save to Firestore
+                await db.collection('users').doc(currentUser.uid).collection('web_clipper').add({
+                    appId: 'web_clipper',
+                    title: pageTitle,
+                    url: url,
+                    content: cleanedHtml,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                log("Saved to Firestore!", 'success');
+                showStatus("Successfully saved to your board!", 'success');
+                loadPosts(); // Refresh list
+
+            } catch (error) {
+                console.error(error);
+                log(`Save failed: ${error.message}`, 'error');
+                showStatus(`Save Error: ${error.message}`, 'error');
+            } finally {
+                document.getElementById('saveBtn').disabled = false;
+                document.getElementById('saveBtn').innerHTML = '<span>Save to Board</span>';
+            }
+        }
+
+        function loadPosts() {
+            const listEl = document.getElementById('postList');
+            if (!listEl || !currentUser) return;
+
+            db.collection('users').doc(currentUser.uid).collection('web_clipper')
+                .orderBy('createdAt', 'desc')
+                .limit(10)
+                .get()
+                .then(snapshot => {
+                    listEl.innerHTML = '';
+                    if (snapshot.empty) {
+                        listEl.innerHTML = '<li style="color: #64748b; font-size: 0.9rem;">No saved posts yet.</li>';
+                        return;
+                    }
+
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString() : 'Just now';
+                        const li = document.createElement('li');
+                        li.style.padding = '0.75rem 0';
+                        li.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+                        li.innerHTML = `
+                            <div style="font-size: 0.95rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.2rem;">${data.title}</div>
+                            <div style="font-size: 0.8rem; color: #64748b;">
+                                ${date} • <a href="${data.url}" target="_blank" style="color: #38bdf8; text-decoration: none;">Original Link</a>
+                            </div>
+                        `;
+                        listEl.appendChild(li);
+                    });
+                })
+                .catch(err => {
+                    log(`Load posts failed: ${err.message}`, 'error');
+                    listEl.innerHTML = '<li style="color: #f87171;">Failed to load posts.</li>';
+                });
+        }
     </script>
-</body>
 
 </html>
