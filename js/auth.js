@@ -25,6 +25,10 @@
         console.log("[Auth] Firebase SDK already initialized");
     }
 
+    // Initialize Firestore if available (Safety Check)
+    // REMOVED: Firestore Client SDK not supported in Datastore Mode.
+    // Using REST API instead.
+
     /**
      * Sign In with Google (Popup)
      */

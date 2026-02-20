@@ -1,5 +1,5 @@
 // Hybrid Auth Migration
-// Dependencies: firebase-auth.js, js/auth.js
+// Dependencies: firebase-auth.js, js/api-config.js, js/auth.js
 
 (function () {
     "use strict";
@@ -10,7 +10,7 @@
     if (window.registerAuthListener) {
         window.registerAuthListener(user => {
             if (user) {
-                console.log("Auth State:", user.email);
+                // User is logged in
             } else {
                 // Strict Auth Redirect for Generator as requested
                 window.location.replace("../index.html");
@@ -35,28 +35,45 @@
         "Union", "Vivid", "Whale", "Xenon", "Yacht", "Zebra", "Alpha", "Berry", "Crisp", "Drive"
     ];
 
+    /**
+     * Generates a secure random number within a range.
+     * @param {number} max - The upper bound (exclusive).
+     * @returns {number} A random integer between 0 and max-1.
+     */
     function secureRandom(max) {
         const array = new Uint32Array(1);
         window.crypto.getRandomValues(array);
         return array[0] % max;
     }
 
+    /**
+     * Logs messages to the specific debug console and browser console.
+     * @param {string} message - The message to log.
+     * @param {string} [type='info'] - Log type: 'info', 'warn', 'error', 'success'.
+     */
     function log(message, type = 'info') {
         const consoleEl = document.getElementById('debugConsole');
-        const entry = document.createElement('div');
-        entry.className = `log-entry log-${type}`;
-        const time = new Date().toLocaleTimeString([], { hour12: false });
-        entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
         if (consoleEl) {
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            const time = new Date().toLocaleTimeString([], { hour12: false });
+            entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
             consoleEl.appendChild(entry);
             consoleEl.scrollTop = consoleEl.scrollHeight;
         }
-        console.log(`[${type.toUpperCase()}] ${message}`);
+        // console.log(`[${type.toUpperCase()}] ${message}`); // Removed for Production Cleanliness
     }
 
+    /**
+     * Fetches headlines from Google News via RSS Proxy.
+     * @param {number} minWords - Minimum number of words required.
+     * @returns {Promise<string[]>} Array of word tokens.
+     */
     async function fetchNewsSentence(minWords) {
-        // RSS to JSON Proxy
-        const PROXY_URL = "https://api.rss2json.com/v1/api.json?rss_url=https://news.google.com/rss/search?q=technology&hl=en-US&gl=US&ceid=US:en";
+        // Updated to use centralized config
+        const PROXY_URL = (window.API_CONFIG && window.API_CONFIG.endpoints && window.API_CONFIG.endpoints.rssProxy)
+            ? window.API_CONFIG.endpoints.rssProxy
+            : "https://api.rss2json.com/v1/api.json?rss_url=https://news.google.com/rss/search?q=technology&hl=en-US&gl=US&ceid=US:en";
 
         try {
             log("Fetching headlines from Google News...", 'info');
@@ -122,6 +139,12 @@
         }
     }
 
+    /**
+     * Extracts characters from tokens to form a password.
+     * @param {string[]} sentenceTokens - Array of words/tokens.
+     * @param {number} targetLength - Desired password length.
+     * @returns {Object} Object containing `password` string and `indices` array.
+     */
     function extractPasswordCharacters(sentenceTokens, targetLength) {
         let password = "";
         let highlightedIndices = []; // Stores [wordIndex, charIndex] for each extracted char
@@ -179,7 +202,9 @@
         return { password, indices: highlightedIndices };
     }
 
-
+    /**
+     * Main function to generate password based on UI inputs.
+     */
     async function generatePassword() {
         const lengthInput = document.getElementById('length');
         let length = parseInt(lengthInput.value);
@@ -243,6 +268,9 @@
         log("Password generation complete.", 'success');
     }
 
+    /**
+     * Copies the generated password to clipboard.
+     */
     function copyToClipboard() {
         const password = document.getElementById('passwordOutput').innerText;
         if (password) {
@@ -253,6 +281,9 @@
         }
     }
 
+    /**
+     * Opens user's email client with the generated password details.
+     */
     function sendEmail() {
         const password = document.getElementById('passwordOutput').innerText;
         const usage = document.getElementById('usage').value || "Service";

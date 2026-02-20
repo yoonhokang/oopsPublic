@@ -20,11 +20,8 @@ const firebaseConfig = {
 if (typeof firebase !== 'undefined' && !firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 
-    // Force Long Polling (Critical for restrictive networks)
-    const db = firebase.firestore();
-    db.settings({ experimentalForceLongPolling: true });
-
-    console.log("Firebase initialized via public config (Long Polling enabled).");
+    // Firestore Client SDK initialization REMOVED (Datastore Mode).
+    // Application uses REST API for data access.
 } else if (typeof firebase === 'undefined') {
     console.error("Firebase SDK not loaded. Cannot initialize.");
 }

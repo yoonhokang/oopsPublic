@@ -1,64 +1,68 @@
-// Hybrid Auth Migration: SDK Authentication + REST DB
-// - Authentication: Managed by Firebase SDK (firebase-auth.js)
-// - Database: Managed by REST API calls using ID Token from SDK
-
-// Global instances from auth.js and api-config.js
-// getAuthIdToken: Helper to get current user's ID token
-// firebase: SDK Global
-// Logger: Global Logger from debug-monitor.js (if debugMode)
+// Web Page to Email & Board Tool
+// - Authentication: Firebase SDK (Auth only)
+// - Database: REST API (Firestore via fetch)
 
 (function () {
     "use strict";
 
     const isDebug = (window.API_CONFIG && window.API_CONFIG.debugMode) || false;
 
+    // Global State
+    let loadedPosts = []; // Stores current posts for client-side search
+    let currentUser = null; // Store user for REST calls
+    let pollingInterval = null; // For manual refreshing since we lost real-time
+
     // Auth Guard & UI
-    // 인증 상태 변화 감지 리스너 등록 (SDK)
     if (window.registerAuthListener) {
         window.registerAuthListener(user => {
             if (window.Logger && isDebug) window.Logger.info(`AuthStateChanged: ${user ? user.email : "No User"}`);
-            else console.log("AuthStateChanged:", user ? user.email : "No User");
+            currentUser = user;
 
-            // renderAuthUI is handled inside registerAuthListener automatically.
             if (!user) {
-                // Strict Auth Redirect
-                // 로그인하지 않은 경우 메인으로 강제 이동
+                // Not logged in -> Redirect
                 window.location.replace("../index.html");
             } else {
-                // 로그인한 경우 포스트 목록 로드
-                loadPosts();
+                // Logged in -> Load Board via REST
+                initBoardPolling(user);
             }
         });
-    } else {
-        console.error("registerAuthListener not found. Check auth.js loading.");
     }
 
     const statusArea = document.getElementById('statusArea');
     const sendBtn = document.getElementById('sendBtn');
+    const saveBtn = document.getElementById('saveBtn');
     const urlInput = document.getElementById('urlInput');
     const debugConsole = document.getElementById('debugConsole');
 
-    // [User Request] Debug Console should always be visible
-    // Removed: Conditional hiding based on isDebug
+    // Inject Search Input if not exists
+    const boardSection = document.getElementById('boardSection');
+    let searchContainer = document.getElementById('searchContainer');
+    if (!searchContainer && boardSection) {
+        searchContainer = document.createElement('div');
+        searchContainer.id = 'searchContainer';
+        searchContainer.style.marginBottom = '1rem';
+        searchContainer.innerHTML = `
+            <input type="text" id="searchInput" placeholder="Search saved posts..." 
+                style="width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px;">
+        `;
+        boardSection.insertBefore(searchContainer, boardSection.querySelector('ul'));
 
-    // Removed: Manual Toggle function
+        const input = searchContainer.querySelector('input');
+        input.addEventListener('input', (e) => {
+            renderBoard(e.target.value);
+        });
+    }
 
-    /**
-     * Logs messages to the on-screen debug console and browser console.
-     * @param {string} message - The message to log.
-     * @param {string} [type='info'] - The type of log ('info', 'error', 'success', 'warn').
-     */
+    // Helper: Log
     function log(message, type = 'info') {
-        // 1. Log to Global Logger (which handles on-screen panel & console)
         if (window.Logger) {
-            if (type === 'error') window.Logger.error(message);
-            else if (type === 'success') window.Logger.success(message);
-            else window.Logger.info(message);
+            type === 'error' ? window.Logger.error(message) :
+                type === 'success' ? window.Logger.success(message) :
+                    window.Logger.info(message);
         } else {
             console.log(`[${type}] ${message}`);
         }
 
-        // 2. Log to Embedded Console (Always, as requested)
         if (debugConsole) {
             const entry = document.createElement('div');
             entry.className = `log-entry log-${type}`;
@@ -69,11 +73,6 @@
         }
     }
 
-    /**
-     * Displays a status message to the user given a message string and type.
-     * @param {string} message - The message to display.
-     * @param {string} [type='info'] - The type of message ('info', 'error', 'success').
-     */
     function showStatus(message, type = 'info') {
         statusArea.style.display = 'block';
         statusArea.innerHTML = message;
@@ -82,10 +81,6 @@
         if (type === 'error') statusArea.classList.add('status-error');
     }
 
-    /**
-     * Toggles the loading state of the UI buttons.
-     * @param {boolean} isLoading - Whether the app is currently processing a task.
-     */
     function setLoading(isLoading) {
         if (isLoading) {
             sendBtn.disabled = true;
@@ -96,14 +91,7 @@
         }
     }
 
-    // [HTML Cleaning Logic - Unchanged]
-    /**
-     * Cleans and prepares HTML content for email transmission.
-     * Removes scripts, styles, and unsafe attributes. Resolves relative URLs.
-     * @param {string} htmlString - The raw HTML content.
-     * @param {string} baseUrl - The base URL for resolving relative links.
-     * @returns {Promise<string>} The cleaned HTML string.
-     */
+    // [HTML Cleaning Logic - Enhanced 260220]
     async function cleanHtml(htmlString, baseUrl) {
         log("State: Parsing HTML...", 'info');
         await new Promise(r => setTimeout(r, 10));
@@ -111,90 +99,92 @@
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlString, 'text/html');
 
-        if (!doc.head && !doc.body) {
-            log("Warning: Empty document parsed.", 'warn');
-            return htmlString;
-        }
+        if (!doc.head && !doc.body) return htmlString;
 
-        log("State: Adjusting Base URL...", 'info');
+        // 1. Resolve Relative URLs (Images & Links)
         const base = document.createElement('base');
         base.href = baseUrl;
         if (doc.head) doc.head.appendChild(base);
         else doc.body.insertBefore(base, doc.body.firstChild);
 
-        log("State: Removing scripts...", 'info');
-        const elementsToRemove = doc.querySelectorAll('script, iframe, object, embed, form, button, nav, footer, style, link[rel="stylesheet"]');
+        // 2. Remove Unwanted Elements (Scripts, Styles, Nav, etc.)
+        const elementsToRemove = doc.querySelectorAll('script, iframe, object, embed, form, button, nav, footer, style, link, meta, noscript, svg, canvas');
         elementsToRemove.forEach(el => el.remove());
 
-        log("State: Security Hardening (Attributes)...", 'info');
-        await new Promise(r => setTimeout(r, 10));
-
+        // 3. Clean Attributes (Event Handlers, Data Attributes)
         const allElements = doc.querySelectorAll('*');
         for (let j = 0; j < allElements.length; j++) {
             const el = allElements[j];
             if (el.attributes) {
-                for (let i = el.attributes.length - 1; i >= 0; i--) {
+                // Remove all 'on*' events and 'data-*' attributes
+                const attrsToRemove = [];
+                for (let i = 0; i < el.attributes.length; i++) {
                     const attr = el.attributes[i];
-                    if (attr.name.startsWith('on')) el.removeAttribute(attr.name);
+                    if (attr.name.startsWith('on') || attr.name.startsWith('data-')) {
+                        attrsToRemove.push(attr.name);
+                    }
                 }
+                attrsToRemove.forEach(name => el.removeAttribute(name));
             }
+            // Remove 'javascript:' hrefs
             if (el.hasAttribute('href') && el.getAttribute('href').trim().toLowerCase().startsWith('javascript:')) el.removeAttribute('href');
-            if (el.hasAttribute('src') && el.getAttribute('src').trim().toLowerCase().startsWith('javascript:')) el.removeAttribute('src');
 
-            if (j % 500 === 0) await new Promise(r => setTimeout(r, 0));
+            // 4. Strip Inline Styles (Reset Formatting)
+            el.removeAttribute('style');
+            el.removeAttribute('class');
+            el.removeAttribute('id');
         }
 
-        log("State: Resolving URLs...", 'info');
+        // 5. Fix Image Paths
         doc.querySelectorAll('img').forEach(img => {
-            try { img.src = new URL(img.getAttribute('src'), baseUrl).href; } catch (e) { }
+            try {
+                img.src = new URL(img.getAttribute('src'), baseUrl).href;
+                // Force Responsive Images
+                img.style.maxWidth = '100%';
+                img.style.height = 'auto';
+                img.style.display = 'block';
+                img.style.margin = '10px auto';
+            } catch (e) { }
         });
+
         doc.querySelectorAll('a').forEach(a => {
-            try { a.href = new URL(a.getAttribute('href'), baseUrl).href; } catch (e) { }
+            try {
+                a.href = new URL(a.getAttribute('href'), baseUrl).href;
+                a.target = '_blank';
+                a.style.color = '#3b82f6';
+                a.style.textDecoration = 'underline';
+            } catch (e) { }
         });
 
-        log("State: Finalizing HTML...", 'info');
-
-        let finalHtml = "";
-        try {
-            finalHtml = `
-                        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto;">
-                            <p style="font-size: 0.8em; color: #666; border-bottom: 1px solid #ccc; padding-bottom: 5px;">
-                                Source: <a href="${baseUrl}">${baseUrl}</a>
-                            </p>
-                            ${doc.body ? doc.body.innerHTML : ''}
-                        </div>
-                    `;
-        } catch (err) {
-            log("Error constructing HTML: " + err.message, 'error');
-            throw err;
+        // 6. Remove Empty Elements (P, DIV, SPAN)
+        // Repeat a few times to handle nested empty elements
+        for (let k = 0; k < 3; k++) {
+            doc.querySelectorAll('p, div, span, h1, h2, h3, h4, h5, h6, li').forEach(el => {
+                if (el.innerText.trim() === '' && el.children.length === 0 && el.tagName !== 'IMG') {
+                    el.remove();
+                }
+            });
         }
 
-        return finalHtml;
+        // 7. Flatten layout significantly
+        return `
+            <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; background: #fff;">
+                <p style="font-size: 0.8em; color: #666; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 20px;">
+                    Source: <a href="${baseUrl}" style="color:#666; text-decoration:none;">${baseUrl}</a>
+                </p>
+                <div class="cleaned-content">
+                    ${doc.body ? doc.body.innerHTML : ''}
+                </div>
+            </div>
+        `;
     }
 
-    // [Proxy Logic - Unchanged]
-    /**
-     * Fetches content from a URL using various CORS proxies.
-     * @param {string} targetUrl - The URL to fetch.
-     * @returns {Promise<string>} The fetched content.
-     */
+    // [Proxy Logic - Same as before]
     async function fetchWithFallback(targetUrl) {
         const proxies = [
-            {
-                name: 'CorsProxy.io',
-                url: `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-                type: 'html'
-            },
-            {
-                name: 'AllOrigins',
-                url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`,
-                type: 'json'
-            },
-            {
-                name: 'CodeTabs',
-                url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
-                type: 'html'
-            }
+            { name: 'CorsProxy.io', url: `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`, type: 'html' },
+            { name: 'AllOrigins', url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, type: 'json' },
+            { name: 'CodeTabs', url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`, type: 'html' }
         ];
 
         for (const proxy of proxies) {
@@ -202,293 +192,291 @@
                 log(`Trying Proxy: ${proxy.name} ...`, 'info');
                 const response = await fetch(proxy.url);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-                let content = "";
-                if (proxy.type === 'json') {
-                    const data = await response.json();
-                    content = data.contents;
-                } else {
-                    content = await response.text();
-                }
-
-                if (!content || content.length < 50) throw new Error("Empty or invalid content");
-
-                log(`Proxy ${proxy.name} Success. Content length: ${content.length}`, 'success');
+                let content = proxy.type === 'json' ? (await response.json()).contents : await response.text();
+                if (!content || content.length < 50) throw new Error("Empty content");
                 return content;
-
             } catch (error) {
                 log(`Proxy ${proxy.name} failed: ${error.message}`, 'warn');
             }
         }
-        log("All proxies exhausted.", 'error');
         throw new Error("All proxies failed.");
     }
 
-    // [Process Logic - Unchanged]
-    /**
-     * Main handler for the "Capture & Email" button.
-     * Fetches, cleans, copies to clipboard, and opens mail client.
-     */
+    // [Process Logic]
     async function processAndSend() {
+        // ... (No changes here, relies on global scope functions if any, but cleanHtml is local)
         const url = urlInput.value.trim();
         if (!url) { showStatus("Please enter a valid URL.", "error"); return; }
-        if (!url.startsWith('http')) { showStatus("URL must start with http:// or https://", "error"); return; }
 
-        if (debugConsole) debugConsole.innerHTML = '';
         setLoading(true);
-        showStatus("Fetching web page content...", "info");
-        log(`Starting capture for: ${url}`, 'info');
+        debugConsole.innerHTML = '';
 
         try {
             const rawHtml = await fetchWithFallback(url);
-            log("Fetch complete. Cleaning...", 'info');
             const cleanedHtml = await cleanHtml(rawHtml, url);
-            log(`Cleaning complete. Length: ${cleanedHtml.length}`, 'info');
-
             const blobHtml = new Blob([cleanedHtml], { type: "text/html" });
             const blobText = new Blob([url], { type: "text/plain" });
 
-            const clipboardItem = new ClipboardItem({
-                "text/html": blobHtml,
-                "text/plain": blobText,
-            });
-
-            await navigator.clipboard.write([clipboardItem]);
-            log("Content copied to clipboard.", 'success');
-
-            showStatus(`
-                        <strong>Success! Content Copied.</strong><br>
-                        Email client opening...<br>
-                        Press <strong>Ctrl+V</strong> in the email body.
-                    `, "success");
+            await navigator.clipboard.write([new ClipboardItem({ "text/html": blobHtml, "text/plain": blobText })]);
+            showStatus("Content Copied! Opening Email...", "success");
 
             const subject = `Web Page: ${new URL(url).hostname}`;
-            const body = `Original URL: ${url}\n\n\n\n[Paste content here]\n`;
-
+            const body = `Original URL: ${url}\n\n[Paste content here]`;
             setTimeout(() => {
                 window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
             }, 500);
 
         } catch (error) {
-            console.error(error);
-            log(`Process failed: ${error.message}`, 'error');
-            showStatus(`Error: ${error.message}`, "error");
+            log(`Error: ${error.message}`, 'error');
+            showStatus(error.message, "error");
         } finally {
             setLoading(false);
         }
     }
 
-    // [REST API Save Logic - Hybrid Version]
-    // 1. Get SDK User ID
-    // 2. Get ID Token from SDK
-    // 3. Make REST API Call
-    /**
-     * Main handler for the "Save to Board" button.
-     * Fetches, cleans, and saves the content to Firestore via REST API.
-     */
+    // [REST API Logic]
+
+    function initBoardPolling(user) {
+        // 1. Initial Load
+        loadBoardREST(user);
+
+        // 2. Setup Manual Refresh Button Logic
+        // Remove existing refresh button if exists to prevent duplicates
+        const existingRefreshBtn = document.getElementById('manualRefreshBtn');
+        if (existingRefreshBtn) existingRefreshBtn.remove();
+
+        // Find title to append button next to it
+        const titleEl = document.querySelector('#boardSection h3');
+        if (titleEl) {
+            const refreshBtn = document.createElement('button');
+            refreshBtn.id = 'manualRefreshBtn';
+            refreshBtn.innerHTML = '&#x21bb; Refresh'; // ↻ Symbol
+            refreshBtn.style.cssText = `
+                margin-left: 10px; font-size: 0.8rem; padding: 2px 8px; 
+                background: transparent; border: 1px solid #475569; color: #cbd5e1; 
+                border-radius: 4px; cursor: pointer; transition: all 0.2s;
+            `;
+            refreshBtn.addEventListener('mouseover', () => { refreshBtn.style.background = '#334155'; refreshBtn.style.color = '#fff'; });
+            refreshBtn.addEventListener('mouseout', () => { refreshBtn.style.background = 'transparent'; refreshBtn.style.color = '#cbd5e1'; });
+
+            refreshBtn.addEventListener('click', () => {
+                refreshBtn.innerHTML = '...';
+                loadBoardREST(user).then(() => {
+                    refreshBtn.innerHTML = '&#x21bb; Refresh';
+                });
+            });
+
+            titleEl.appendChild(refreshBtn);
+        }
+    }
+
+    async function loadBoardREST(user, silent = false) {
+        if (!silent) {
+            const listEl = document.getElementById('postList');
+            // Only show loading if empty or requested
+            if (listEl.children.length === 0) listEl.innerHTML = '<li style="text-align:center;">Loading Board...</li>';
+        }
+
+        try {
+            const token = await window.getAuthIdToken();
+            if (!token) throw new Error("Auth Token Missing");
+
+            const endpoint = `${window.API_CONFIG.endpoints.firestore}/users/${user.uid}:runQuery`;
+
+            const response = await fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    structuredQuery: {
+                        from: [{ collectionId: "web_clipper" }],
+                        orderBy: [{ field: { fieldPath: "createdAt" }, direction: "DESCENDING" }],
+                        limit: 50
+                    }
+                })
+            });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+
+            loadedPosts = (data || []).map(item => {
+                if (!item.document) return null;
+
+                const doc = item.document;
+                const fields = doc.fields || {};
+                const id = doc.name.split('/').pop();
+
+                return {
+                    id: id,
+                    title: fields.title ? fields.title.stringValue : "Untitled",
+                    url: fields.url ? fields.url.stringValue : "#",
+                    content: fields.content ? fields.content.stringValue : "<p>No content saved.</p>",
+                    createdAt: fields.createdAt ? { seconds: new Date(fields.createdAt.timestampValue).getTime() / 1000 } : null
+                };
+            }).filter(p => p !== null);
+
+            renderBoard(document.querySelector('#searchInput')?.value || '');
+            if (!silent) log(`REST Loaded: ${loadedPosts.length} posts`, 'success');
+
+        } catch (error) {
+            console.error("REST Load Error:", error);
+            if (!silent) {
+                log(`Load Error: ${error.message}`, 'error');
+                document.getElementById('postList').innerHTML = '<li style="color:red">Failed to load board.</li>';
+            }
+        }
+    }
+
+    function renderBoard(searchQuery = '') {
+        const listEl = document.getElementById('postList');
+        listEl.innerHTML = '';
+
+        const query = searchQuery.toLowerCase();
+        const filtered = loadedPosts.filter(post =>
+            (post.title && post.title.toLowerCase().includes(query)) ||
+            (post.url && post.url.toLowerCase().includes(query))
+        );
+
+        if (filtered.length === 0) {
+            listEl.innerHTML = '<li style="text-align:center; padding: 1rem; color: #888;">No posts found.</li>';
+            return;
+        }
+
+        filtered.forEach(post => {
+            const li = document.createElement('li');
+            li.className = 'board-item';
+            li.style.cssText = `background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 0.75rem; margin-bottom: 0.5rem; display: flex; flex-direction: column; gap: 8px; transition: background 0.2s;`;
+
+            const dateStr = post.createdAt ? new Date(post.createdAt.seconds * 1000).toLocaleString() : 'Unknown Date';
+
+            li.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                    <!-- Toggle Button -->
+                    <button class="toggle-btn" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:1.2rem; padding:0 5px;">&#9656;</button>
+                    
+                    <a href="${post.url}" target="_blank" style="font-weight: bold; color: #f1f5f9; text-decoration: none; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${post.title}</a>
+                    
+                    <div style="font-size: 0.8rem; color: #64748b; margin-right: 10px;">${dateStr}</div>
+                    
+                    <button class="delete-btn" data-id="${post.id}" style="background: #ef4444; border: none; border-radius: 4px; color: white; padding: 4px 8px; cursor: pointer; font-size: 0.8rem;">Delete</button>
+                </div>
+                
+                <!-- Expanded Content Area -->
+                <div class="post-content" style="display: none; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 0.5rem; padding-top: 1rem; color: #cbd5e1; font-size: 0.95rem; overflow-x: auto; background: rgba(0,0,0,0.2); border-radius: 4px; padding: 15px;">
+                    ${post.content}
+                </div>
+            `;
+
+            // Accordion Logic
+            const toggleBtn = li.querySelector('.toggle-btn');
+            const contentDiv = li.querySelector('.post-content');
+
+            toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+
+                // 1. Close all OTHER open items
+                document.querySelectorAll('.post-content').forEach(el => {
+                    if (el !== contentDiv) {
+                        el.style.display = 'none';
+                        // Reset other buttons
+                        const otherBtn = el.parentElement.querySelector('.toggle-btn');
+                        if (otherBtn) otherBtn.innerHTML = '&#9656;'; // Right arrow
+                    }
+                });
+
+                // 2. Toggle CURRENT item
+                const isHidden = contentDiv.style.display === 'none';
+                contentDiv.style.display = isHidden ? 'block' : 'none';
+                toggleBtn.innerHTML = isHidden ? '&#9662;' : '&#9656;'; // Down arrow vs Right arrow
+            });
+
+            li.querySelector('.delete-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                deletePost(e.target.dataset.id);
+            });
+
+            listEl.appendChild(li);
+        });
+    }
+
     async function saveToBoard() {
         const url = urlInput.value.trim();
-        if (!url) { showStatus("Please enter a valid URL.", "error"); return; }
+        if (!url) { showStatus("Invalid URL", "error"); return; }
+        if (!currentUser) { showStatus("Please log in first.", "error"); return; }
 
-        // Disable buttons
-        document.getElementById('saveBtn').disabled = true;
-        document.getElementById('saveBtn').innerHTML = '<div class="loading-spinner"></div>';
-
-        log(`Starting save for: ${url}`, 'info');
+        saveBtn.disabled = true;
+        saveBtn.innerText = "Saving...";
 
         try {
             const rawHtml = await fetchWithFallback(url);
             const cleanedHtml = await cleanHtml(rawHtml, url);
+            const docStub = new DOMParser().parseFromString(rawHtml, "text/html");
+            const title = (docStub.querySelector('title') ? docStub.querySelector('title').innerText : url) || "Untitled";
 
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(rawHtml, "text/html");
-            const pageTitle = (doc.querySelector('title') ? doc.querySelector('title').innerText : url) || "Untitled Page";
+            const token = await window.getAuthIdToken();
+            if (!token) throw new Error("Auth Token Missing");
 
-            // Auth Check (Hybrid)
-            const user = firebase.auth().currentUser;
-            if (!user) {
-                throw new Error("User session invalid. Please log in again.");
-            }
-
-            // Get Token for REST API
-            const idToken = await window.getAuthIdToken();
-            if (!idToken) throw new Error("Failed to retrieve ID Token.");
-
-            log(`Saving Content (Length: ${cleanedHtml.length})...`, 'info');
-
-            // REST API: Create Document (POST)
-            const projectId = window.API_CONFIG.projectId;
-            const endpoint = `${window.API_CONFIG.endpoints.firestore}/users/${user.uid}/web_clipper?key=${window.API_CONFIG.apiKey}`;
-
-            const body = {
-                fields: {
-                    appId: { stringValue: 'web_clipper' },
-                    title: { stringValue: pageTitle },
-                    url: { stringValue: url },
-                    content: { stringValue: cleanedHtml },
-                    createdAt: { timestampValue: new Date().toISOString() }
-                }
-            };
-
-            log(`Sending POST request to Firestore REST API...`, 'info');
+            const endpoint = `${window.API_CONFIG.endpoints.firestore}/users/${currentUser.uid}/web_clipper`;
 
             const response = await fetch(endpoint, {
-                method: 'POST',
+                method: "POST",
                 headers: {
-                    'Authorization': `Bearer ${idToken}`, // Send ID Token
-                    'Content-Type': 'application/json'
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
                 },
-                body: JSON.stringify(body)
+                body: JSON.stringify({
+                    fields: {
+                        appId: { stringValue: 'web_clipper' },
+                        title: { stringValue: title },
+                        url: { stringValue: url },
+                        content: { stringValue: cleanedHtml },
+                        createdAt: { timestampValue: new Date().toISOString() }
+                    }
+                })
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                // Handle 404 Database Not Found
-                if (response.status === 404 && errorText.includes("database (default) does not exist")) {
-                    throw new Error("Firestore Database not created. Please go to Firebase Console -> Firestore Database -> Create Database.");
-                }
-                throw new Error(`Firestore Error (${response.status}): ${errorText}`);
-            }
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-            const responseData = await response.json();
-            log(`Saved successfully! Doc ID: ${responseData.name.split('/').pop()}`, 'success');
-
-            showStatus("Successfully saved to your board!", 'success');
-            loadPosts(); // Refresh list
+            log("Saved via REST API", 'success');
+            showStatus("Saved successfully!", "success");
+            loadBoardREST(currentUser);
 
         } catch (error) {
-            console.error(error);
-            log(`Save failed: ${error.message}`, 'error');
-            showStatus(`Save Error: ${error.message}`, 'error');
+            log(`Save Failed: ${error.message}`, 'error');
+            showStatus(error.message, 'error');
         } finally {
-            document.getElementById('saveBtn').disabled = false;
-            document.getElementById('saveBtn').innerHTML = '<span>Save to Board</span>';
+            saveBtn.disabled = false;
+            saveBtn.innerText = "Save to Board";
         }
     }
 
-    // Helper: Convert Firestore REST JSON to specific Object
-    function parseFirestoreNode(node) {
-        if (node.stringValue !== undefined) return node.stringValue;
-        if (node.booleanValue !== undefined) return node.booleanValue;
-        if (node.integerValue !== undefined) return parseInt(node.integerValue, 10);
-        if (node.timestampValue !== undefined) return new Date(node.timestampValue);
-        if (node.mapValue !== undefined) return parseFirestoreMap(node.mapValue.fields);
-        return null;
-    }
-
-    function parseFirestoreMap(fields) {
-        const out = {};
-        for (const key in fields) {
-            out[key] = parseFirestoreNode(fields[key]);
-        }
-        return out;
-    }
-
-    // [REST API Load Logic - Hybrid Version]
-    /**
-     * Loads the authenticated user's posts from Firestore and renders them to the list.
-     */
-    async function loadPosts() {
-        const listEl = document.getElementById('postList');
-        const user = firebase.auth().currentUser;
-
-        if (!listEl || !user) return;
-
-        listEl.innerHTML = '<li style="color: #94a3b8; text-align: center;"><div class="loading-spinner" style="width: 15px; height: 15px; display: inline-block;"></div> Loading...</li>';
+    async function deletePost(docId) {
+        if (!confirm("Are you sure you want to delete this post?")) return;
+        if (!currentUser) return;
 
         try {
             const token = await window.getAuthIdToken();
-            const apiKey = window.API_CONFIG.apiKey;
-
-            // RunQuery Endpoint
-            const endpoint = `${window.API_CONFIG.endpoints.firestore}/users/${user.uid}:runQuery?key=${apiKey}`;
-
-            log(`Querying DB (runQuery POST)...`, 'info');
-
-            const queryBody = {
-                structuredQuery: {
-                    from: [{
-                        collectionId: "web_clipper"
-                    }],
-                    orderBy: [{
-                        field: { fieldPath: "createdAt" },
-                        direction: "DESCENDING"
-                    }],
-                    limit: 20
-                }
-            };
+            const endpoint = `${window.API_CONFIG.endpoints.firestore}/users/${currentUser.uid}/web_clipper/${docId}`;
 
             const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(queryBody)
+                method: "DELETE",
+                headers: { "Authorization": `Bearer ${token}` }
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                // Handle 404 Database Not Found
-                if (response.status === 404 && errorText.includes("database (default) does not exist")) {
-                    throw new Error("Firestore Database not created. Please go to Firebase Console -> Firestore Database -> Create Database.");
-                }
-                throw new Error(`Query Error (${response.status}): ${errorText}`);
-            }
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-            const rawData = await response.json();
-
-            // rawData contains: [ {document: {...}}, {readTime: ...} ]
-            // Filter out non-document entries (like readTime header/footer)
-            const documents = rawData
-                .filter(item => item.document)
-                .map(item => {
-                    const doc = parseFirestoreMap(item.document.fields || {});
-                    doc._createTime = item.document.createTime;
-                    return doc;
-                });
-
-            log(`Loaded ${documents.length} posts via runQuery`, 'success');
-
-            if (documents.length === 0) {
-                listEl.innerHTML = '<li style="color: #94a3b8; text-align: center;">저장된 포스트가 없습니다.</li>';
-                return;
-            }
-
-            listEl.innerHTML = '';
-            documents.forEach(doc => {
-                const li = document.createElement('li');
-                li.style.cssText = `
-                            background: rgba(0,0,0,0.2);
-                            border: 1px solid rgba(255,255,255,0.05);
-                            border-radius: 6px;
-                            padding: 0.75rem;
-                            margin-bottom: 0.5rem;
-                        `;
-
-                const dateStr = doc.createdAt ? new Date(doc.createdAt).toLocaleString() : 'Unknown Date';
-                const title = doc.title || 'No Title';
-                const url = doc.url || '#';
-
-                li.innerHTML = `
-                            <div style="font-weight: 600; font-size: 0.95rem; color: #f1f5f9; margin-bottom: 0.25rem;">
-                                <a href="${url}" target="_blank" style="color: inherit; text-decoration: none;">${title}</a>
-                            </div>
-                            <div style="font-size: 0.8rem; color: #64748b; display: flex; justify-content: space-between;">
-                                <span>${dateStr}</span>
-                                <a href="${url}" target="_blank" style="color: #38bdf8; text-decoration: none;">View Original</a>
-                            </div>
-                        `;
-                listEl.appendChild(li);
-            });
+            log(`Deleted post: ${docId}`, 'success');
+            loadedPosts = loadedPosts.filter(p => p.id !== docId);
+            renderBoard(document.querySelector('#searchInput')?.value || '');
 
         } catch (error) {
-            console.error(error);
-            listEl.innerHTML = `<li style="color: #fda4af; text-align: center;">Error loading posts: ${error.message}</li>`;
+            log(`Delete Failed: ${error.message}`, 'error');
+            alert("Failed to delete.");
         }
     }
 
-    // Expose public functions to window for HTML event handlers
     window.processAndSend = processAndSend;
     window.saveToBoard = saveToBoard;
 
