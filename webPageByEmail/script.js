@@ -352,15 +352,17 @@
             const dateStr = post.createdAt ? new Date(post.createdAt.seconds * 1000).toLocaleString() : 'Unknown Date';
 
             li.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
-                    <!-- Toggle Button -->
-                    <button class="toggle-btn" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:1.2rem; padding:0 5px;">&#9656;</button>
+                <div class="board-item-content">
+                    <div class="board-item-header">
+                        <!-- Toggle Button -->
+                        <button class="toggle-btn" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:1.2rem; padding:0 5px; flex-shrink: 0;">&#9656;</button>
+                        <a href="${post.url}" target="_blank" style="font-weight: bold; color: #f1f5f9; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;">${post.title}</a>
+                    </div>
                     
-                    <a href="${post.url}" target="_blank" style="font-weight: bold; color: #f1f5f9; text-decoration: none; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${post.title}</a>
-                    
-                    <div style="font-size: 0.8rem; color: #64748b; margin-right: 10px;">${dateStr}</div>
-                    
-                    <button class="delete-btn" data-id="${post.id}" style="background: #ef4444; border: none; border-radius: 4px; color: white; padding: 4px 8px; cursor: pointer; font-size: 0.8rem;">Delete</button>
+                    <div class="board-item-meta">
+                        <div style="font-size: 0.8rem; color: #64748b;">${dateStr}</div>
+                        <button class="delete-btn" data-id="${post.id}" style="background: #ef4444; border: none; border-radius: 4px; color: white; padding: 4px 8px; cursor: pointer; font-size: 0.8rem;">Delete</button>
+                    </div>
                 </div>
                 
                 <!-- Expanded Content Area -->

@@ -307,4 +307,50 @@ button.action-btn:disabled {
         /* 폰트 크기 축소 */
         font-size: 0.85rem;
     }
+
+    /* Mobile Responsive Board Item */
+    .board-item-content {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 8px;
+    }
+
+    .board-item-header {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .board-item-meta {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-left: 30px; /* Align with title text (indenting toggle btn) */
+        box-sizing: border-box;
+    }
+}
+
+/* Default Desktop Styles for Board Item Classes */
+.board-item-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.board-item-header {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
+}
+
+.board-item-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
 }
