@@ -77,12 +77,11 @@
 
             <!-- 버튼들을 감싸는 그룹 -->
             <div class="button-group">
-                <!-- 캡처 및 이메일 전송 버튼 (클릭 시 processAndSend 함수 실행) -->
-                <button id="sendBtn" class="action-btn" onclick="processAndSend()">Capture & Email</button>
-                <!-- 보드에 저장 버튼 (클릭 시 saveToBoard 함수 실행, 스타일 별도 지정) -->
+                <!-- [MAINT] onclick 인라인 이벤트 제거 → script.js 내 addEventListener로 연결 -->
+                <button id="sendBtn" class="action-btn">Capture &amp; Email</button>
                 <button id="saveBtn" class="action-btn"
-                    style="background: linear-gradient(135deg, #64748b, #475569); margin-top: 10px;"
-                    onclick="saveToBoard()">Save to Board</button>
+                    style="background: linear-gradient(135deg, #64748b, #475569); margin-top: 10px;">Save to
+                    Board</button>
             </div>
         </div>
 
@@ -122,9 +121,9 @@
         </div>
     </main>
 
-    <!-- App Script -->
+    <!-- App Script (버전 업데이트: 260220_1736) -->
     <!-- 메인 비즈니스 로직이 담긴 자바스크립트 파일 로드 -->
-    <script src="script.js"></script>
+    <script src="script.js?v=260220_1736"></script>
 
 </body>
 <!-- 본문 종료 -->

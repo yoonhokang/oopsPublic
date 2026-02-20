@@ -14,7 +14,30 @@ service cloud.firestore {
       // 본인(request.auth.uid)과 문서 ID(userId)가 일치할 때만 읽기/쓰기 허용
       allow read, write: if request.auth != null && request.auth.uid == userId;
 
-      // 하위 모든 문서(web_clipper 등)에 대해서도 동일한 규칙 적용
+      // web_clipper 하위 문서: 입력값 검증 강화
+      match /web_clipper/{docId} {
+        // 읽기/삭제: 본인만 허용
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+
+        // 쓰기(생성/수정): 본인 + 필드 유효성 검증
+        allow write: if request.auth != null
+          && request.auth.uid == userId
+          // [검증 1] 허용 필드 목록 초과 금지 (정확히 5개 필드만 허용)
+          && request.resource.data.keys().hasOnly(['appId', 'title', 'url', 'content', 'createdAt'])
+          // [검증 2] 필수 필드 존재 확인
+          && request.resource.data.keys().hasAll(['title', 'url', 'content'])
+          // [검증 3] content 크기 제한: 500KB 이하
+          && request.resource.data.content is string
+          && request.resource.data.content.size() < 500000
+          // [검증 4] url 크기 제한: 2000자 이하
+          && request.resource.data.url is string
+          && request.resource.data.url.size() < 2000
+          // [검증 5] title 크기 제한: 500자 이하
+          && request.resource.data.title is string
+          && request.resource.data.title.size() < 500;
+      }
+
+      // 그 외 하위 문서: 기본 소유자 검증만 적용
       match /{document=**} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }

@@ -275,8 +275,10 @@
         const password = document.getElementById('passwordOutput').innerText;
         if (password) {
             navigator.clipboard.writeText(password).then(() => {
-                alert("Password copied to clipboard!");
-                log("Copied to clipboard.", 'success');
+                // [UX] alert() 제거 → log()로 대체 (이미 debugConsole이 있음)
+                log("Password copied to clipboard!", 'success');
+            }).catch(err => {
+                log(`Clipboard copy failed: ${err.message}`, 'error');
             });
         }
     }
@@ -294,9 +296,18 @@
         log("Opened email client.", 'info');
     }
 
-    // Export functions globally
-    window.generatePassword = generatePassword;
-    window.copyToClipboard = copyToClipboard;
-    window.sendEmail = sendEmail;
+    // [MAINT] 전역 window 노출 제거 - DOMContentLoaded에서 직접 addEventListener로 연결
+    document.addEventListener('DOMContentLoaded', () => {
+        const generateBtn = document.getElementById('generateBtn');
+        const passwordDisplay = document.getElementById('passwordDisplay');
+        const sendEmailBtn = document.getElementById('sendEmailBtn');
+
+        // Generate 버튼
+        if (generateBtn) generateBtn.addEventListener('click', generatePassword);
+        // 비밀번호 표시 영역 클릭 → 클립보드 복사
+        if (passwordDisplay) passwordDisplay.addEventListener('click', copyToClipboard);
+        // 이메일 전송 버튼
+        if (sendEmailBtn) sendEmailBtn.addEventListener('click', sendEmail);
+    });
 
 })();

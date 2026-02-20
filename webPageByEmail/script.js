@@ -1,6 +1,7 @@
 // Web Page to Email & Board Tool
 // - Authentication: Firebase SDK (Auth only)
 // - Database: REST API (Firestore via fetch)
+// - [260220_1736] Security: sanitizeHtml(), 커스텀 모달, window 전역 노출 최소화
 
 (function () {
     "use strict";
@@ -71,6 +72,96 @@
             debugConsole.appendChild(entry);
             debugConsole.scrollTop = debugConsole.scrollHeight;
         }
+    }
+
+    /**
+     * [보안] HTML 문자열을 안전하게 정제합니다.
+     * DOMParser로 파싱 후 위험 요소/속성을 제거합니다.
+     * Stored XSS 방어용으로 DB에서 가져온 콘텐츠 렌더링 전 반드시 적용해야 합니다.
+     * @param {string} htmlString - 정제할 HTML 문자열
+     * @returns {string} 정제된 안전한 HTML 문자열
+     */
+    function sanitizeHtml(htmlString) {
+        if (!htmlString || typeof htmlString !== 'string') return '';
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlString, 'text/html');
+
+        // 1단계: 위험 태그 전체 제거
+        const dangerousTags = 'script, iframe, object, embed, style, link, meta, noscript, base';
+        doc.querySelectorAll(dangerousTags).forEach(el => el.remove());
+
+        // 2단계: 모든 요소의 위험 속성 제거
+        doc.querySelectorAll('*').forEach(el => {
+            const attrsToRemove = [];
+            for (let i = 0; i < el.attributes.length; i++) {
+                const attr = el.attributes[i];
+                // on* 이벤트 핸들러 제거
+                if (attr.name.startsWith('on')) {
+                    attrsToRemove.push(attr.name);
+                }
+            }
+            attrsToRemove.forEach(name => el.removeAttribute(name));
+
+            // javascript: href 제거
+            if (el.hasAttribute('href') &&
+                el.getAttribute('href').trim().toLowerCase().startsWith('javascript:')) {
+                el.removeAttribute('href');
+            }
+            // data: src 제거 (img 예외 처리는 필요 시 추가)
+            if (el.tagName !== 'IMG' && el.hasAttribute('src') &&
+                el.getAttribute('src').trim().toLowerCase().startsWith('data:')) {
+                el.removeAttribute('src');
+            }
+        });
+
+        return doc.body ? doc.body.innerHTML : '';
+    }
+
+    /**
+     * 커스텀 Confirm 모달 (브라우저 기본 confirm() 대체)
+     * Promise를 반환하며, 확인 시 true, 취소 시 false로 resolve 됩니다.
+     * @param {string} message - 모달에 표시할 메시지
+     * @returns {Promise<boolean>}
+     */
+    function showConfirmModal(message) {
+        return new Promise((resolve) => {
+            // 기존 모달이 있으면 제거
+            const existing = document.getElementById('customConfirmModal');
+            if (existing) existing.remove();
+
+            const overlay = document.createElement('div');
+            overlay.id = 'customConfirmModal';
+            overlay.className = 'modal-overlay';
+
+            overlay.innerHTML = `
+                <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="confirmMsg">
+                    <p id="confirmMsg" style="color: #e2e8f0; margin-bottom: 1.5rem; font-size: 1rem;">${message}</p>
+                    <div class="modal-actions">
+                        <button id="confirmCancelBtn" class="secondary-btn">취소</button>
+                        <button id="confirmOkBtn" class="primary-btn" style="background: #ef4444;">삭제</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+
+            document.getElementById('confirmOkBtn').addEventListener('click', () => {
+                overlay.remove();
+                resolve(true);
+            });
+            document.getElementById('confirmCancelBtn').addEventListener('click', () => {
+                overlay.remove();
+                resolve(false);
+            });
+            // 오버레이 클릭 시 닫기
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    overlay.remove();
+                    resolve(false);
+                }
+            });
+        });
     }
 
     function showStatus(message, type = 'info') {
@@ -351,12 +442,14 @@
 
             const dateStr = post.createdAt ? new Date(post.createdAt.seconds * 1000).toLocaleString() : 'Unknown Date';
 
+            // [보안] post.content를 li.innerHTML 안에 직접 삽입하지 않음 (Stored XSS 방지)
+            // sanitizeHtml()을 통해 정제된 HTML을 별도로 설정합니다.
             li.innerHTML = `
                 <div class="board-item-content">
                     <div class="board-item-header">
                         <!-- Toggle Button -->
                         <button class="toggle-btn" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:1.2rem; padding:0 5px; flex-shrink: 0;">&#9656;</button>
-                        <a href="${post.url}" target="_blank" style="font-weight: bold; color: #f1f5f9; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;">${post.title}</a>
+                        <a href="${post.url}" target="_blank" rel="noopener noreferrer" style="font-weight: bold; color: #f1f5f9; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;">${post.title}</a>
                     </div>
                     
                     <div class="board-item-meta">
@@ -365,15 +458,15 @@
                     </div>
                 </div>
                 
-                <!-- Expanded Content Area -->
+                <!-- Expanded Content Area (콘텐츠는 JS로 별도 삽입 - XSS 방지) -->
                 <div class="post-content" style="display: none; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 0.5rem; padding-top: 1rem; color: #cbd5e1; font-size: 0.95rem; overflow-x: auto; background: rgba(0,0,0,0.2); border-radius: 4px; padding: 15px;">
-                    ${post.content}
                 </div>
             `;
 
-            // Accordion Logic
+            // [보안] sanitizeHtml()로 정제 후 DOM 삽입 (innerHTML 직접 삽입 금지)
             const toggleBtn = li.querySelector('.toggle-btn');
             const contentDiv = li.querySelector('.post-content');
+            contentDiv.innerHTML = sanitizeHtml(post.content);
 
             toggleBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -455,7 +548,9 @@
     }
 
     async function deletePost(docId) {
-        if (!confirm("Are you sure you want to delete this post?")) return;
+        // [UX] 브라우저 기본 confirm() 대신 커스텀 모달 사용
+        const confirmed = await showConfirmModal('이 게시물을 삭제하시겠습니까?');
+        if (!confirmed) return;
         if (!currentUser) return;
 
         try {
@@ -475,11 +570,17 @@
 
         } catch (error) {
             log(`Delete Failed: ${error.message}`, 'error');
-            alert("Failed to delete.");
+            // [UX] alert() 제거 → showStatus()로 대체
+            showStatus('삭제에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
         }
     }
 
-    window.processAndSend = processAndSend;
-    window.saveToBoard = saveToBoard;
+    // [MAINT] 전역 window 노출 제거 - DOMContentLoaded에서 직접 addEventListener로 연결
+    document.addEventListener('DOMContentLoaded', () => {
+        const sendBtnEl = document.getElementById('sendBtn');
+        const saveBtnEl = document.getElementById('saveBtn');
+        if (sendBtnEl) sendBtnEl.addEventListener('click', processAndSend);
+        if (saveBtnEl) saveBtnEl.addEventListener('click', saveToBoard);
+    });
 
-})();
+})()

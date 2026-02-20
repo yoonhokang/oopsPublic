@@ -28,7 +28,7 @@ const API_CONFIG = {
         firestore: `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/default/documents`
     },
     // Toggle this to enable/disable on-screen debug monitor and verbose logging
-    debugMode: true
+    debugMode: false
 };
 
 // Export globals

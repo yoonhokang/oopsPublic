@@ -50,12 +50,14 @@
             <label for="length">Password Length (Min: 8)</label>
             <div class="controls">
                 <input type="number" id="length" value="8" min="8" max="64">
-                <button class="generate-btn" onclick="generatePassword()">Generate Secure Password</button>
+                <!-- [MAINT] onclick 제거 → script.js addEventListener로 연결 -->
+                <button id="generateBtn" class="generate-btn">Generate Secure Password</button>
             </div>
         </div>
 
         <div class="result-section" id="resultSection" style="display: none;">
-            <div class="password-display" onclick="copyToClipboard()" title="Click to copy">
+            <!-- [MAINT] onclick 제거 → script.js addEventListener로 연결 -->
+            <div class="password-display" id="passwordDisplay" title="Click to copy">
                 <div class="copy-hint">Click to copy</div>
                 <div class="password-text" id="passwordOutput"></div>
 
@@ -65,8 +67,9 @@
                 </div>
             </div>
 
-            <button class="generate-btn"
-                style="margin-top: 1rem; background: linear-gradient(135deg, #10b981, #059669);" onclick="sendEmail()">
+            <!-- [MAINT] onclick 제거, id 추가 → script.js addEventListener로 연결 -->
+            <button id="sendEmailBtn" class="generate-btn"
+                style="margin-top: 1rem; background: linear-gradient(135deg, #10b981, #059669);">
                 📧 Send via Email
             </button>
         </div>
@@ -78,8 +81,8 @@
         </div>
     </main>
 
-    <!-- App Script -->
-    <script src="script.js"></script>
+    <!-- App Script (버전 업데이트: 260220_1736) -->
+    <script src="script.js?v=260220_1736"></script>
 
 </body>
 

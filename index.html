@@ -68,35 +68,9 @@
         </a>
     </main>
 
-    <script>
-        /**
-         * Main Root Script (Hybrid Version)
-         * Initializes auth listener for the landing page.
-         */
-        document.addEventListener('DOMContentLoaded', () => {
-            // Register UI update listener defined in auth.js
-            if (window.registerAuthListener) {
-                window.registerAuthListener((user) => {
-                    // Updating UI is handled inside auth.js 'renderAuthUI' actually,
-                    // but we can add custom logic here if needed.
-                    console.log("[Main Page] User state:", user ? "Logged In" : "Logged Out");
-                });
-            }
-        });
-
-        // Auth Guard for Navigation Cards
-        const cards = document.querySelectorAll('.card');
-        cards.forEach(card => {
-            card.addEventListener('click', (e) => {
-                const user = firebase.auth().currentUser;
-
-                if (!user) {
-                    e.preventDefault(); // Stop navigation
-                    alert("Login Required.\nPlease sign in with Google to access tools.");
-                }
-            });
-        });
-    </script>
+    <!-- [CSP 개선] 인라인 스크립트 제거 → 외부 파일(main.js)로 분리 -->
+    <!-- 3. Main root page script (Auth Guard, Card Click) -->
+    <script src="./js/main.js?v=260220_1736"></script>
 </body>
 
 </html>
