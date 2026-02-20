@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. 기본적으로 모든 접근 차단 (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. 사용자별 데이터 공간 (User Sandbox)
+    // users 컬렉션의 특정 문서 ID({userId})
+    match /users/{userId} {
+      
+      // 본인(request.auth.uid)과 문서 ID(userId)가 일치할 때만 읽기/쓰기 허용
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // 하위 모든 문서(web_clipper 등)에 대해서도 동일한 규칙 적용
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+  }
+}

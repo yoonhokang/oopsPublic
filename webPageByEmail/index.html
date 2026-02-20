@@ -1,68 +1,110 @@
 <!DOCTYPE html>
+<!-- HTML5 문서 형식 선언 (브라우저에게 최신 표준 모드로 렌더링하도록 지시) -->
 <html lang="ko">
+<!-- HTML 루트 요소 시작, 주 언어는 한국어(ko)로 설정 -->
 
 <head>
+    <!-- 문서의 헤드 섹션 시작 (메타데이터, 스타일, 스크립트 로드) -->
     <meta charset="UTF-8">
+    <!-- 문자 인코딩을 UTF-8로 설정 (한글 깨짐 방지) -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 뷰포트 설정: 모바일 기기에서도 화면 너비에 맞춰 적절히 표시되도록 함 -->
+
+    <!-- Hybrid Auth Migration: SDK Authentication + REST DB
+         - connect-src: firebaseio.com (SDK Auth Handshake), identitytoolkit (REST Auth), firestore (REST DB)
+         - script-src: gstatic (SDK)
+    -->
     <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self' 'unsafe-inline' https://*.googleapis.com https://*.gstatic.com https://*.firebaseapp.com https://*.firebaseio.com; connect-src 'self' https://api.allorigins.win https://corsproxy.io https://api.codetabs.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com; img-src * data:; frame-src https://*.firebaseapp.com;">
+        content="default-src 'self' 'unsafe-inline' https://*.googleapis.com; connect-src 'self' https://api.allorigins.win https://corsproxy.io https://api.codetabs.com https://identitytoolkit.googleapis.com https://www.googleapis.com https://*.googleapis.com https://firestore.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com https://*.firebase.com https://securetoken.googleapis.com https://*.google.com; img-src * data: https://*.googleusercontent.com; script-src 'self' 'unsafe-inline' https://*.gstatic.com https://*.googleapis.com https://*.google.com; frame-src 'self' https://*.firebaseapp.com https://*.google.com;">
+
     <title>Web Page to Email</title>
+    <!-- 브라우저 탭에 표시될 페이지 제목 -->
 
     <!-- Local Styles -->
+    <!-- 이 페이지 전용 스타일시트 (style.css) 로드 -->
     <link rel="stylesheet" href="style.css">
 
-    <!-- Firebase SDKs (Compat) -->
+    <!-- Firebase SDKs RESTORED (Hybrid Auth) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <!-- Note: Firestore SDK is NOT included. We use REST API for Database. -->
 
     <!-- Shared Assets -->
+    <!-- 모든 페이지에서 공통으로 사용하는 스타일시트 로드 -->
     <link rel="stylesheet" href="../css/style.css">
-    <script src="../js/firebase-config.js"></script>
+
+    <!-- API 설정 및 인증 로직 (Hybrid Version) -->
+    <script src="../js/api-config.js"></script>
+    <script src="../js/debug-monitor.js"></script> <!-- DEBUG Added -->
     <script src="../js/auth.js"></script>
 </head>
+<!-- 헤드 섹션 종료 -->
 
 <body>
+    <!-- 문서의 본문 시작 -->
 
+    <!-- 상단 헤더 영역 -->
     <header
         style="display: flex; justify-content: space-between; padding: 1.5rem; align-items: center; max-width: 1200px; margin: 0 auto; width: 100%; box-sizing: border-box;">
+        <!-- 홈으로 돌아가는 링크 버튼 -->
         <a href="../index.html" class="back-btn" style="position: static;">&larr; Home</a>
+        <!-- 로그인 상태/사용자 정보를 표시할 컨테이너 (auth.js에서 제어) -->
         <div id="authContainer" class="auth-container"></div>
     </header>
 
+    <!-- 메인 도구 영역 컨테이너 -->
     <div class="tool-container">
+        <!-- 메인 제목 -->
         <h1>Web Page to Email</h1>
+
+        <!-- 기능 설명 문구 -->
         <p class="description">
             Capture a web page with its formatting enabled and prepare it for email transmission.<br>
             Enter a URL below to start.
         </p>
 
+        <!-- URL 입력 및 버튼 그룹 -->
         <div class="input-group">
+            <!-- 입력 필드 라벨 -->
             <label for="urlInput">Target URL</label>
+            <!-- URL 입력 필드 (type=text) -->
             <input type="text" id="urlInput" placeholder="https://example.com/article">
 
+            <!-- 버튼들을 감싸는 그룹 -->
             <div class="button-group">
+                <!-- 캡처 및 이메일 전송 버튼 (클릭 시 processAndSend 함수 실행) -->
                 <button id="sendBtn" class="action-btn" onclick="processAndSend()">Capture & Email</button>
+                <!-- 보드에 저장 버튼 (클릭 시 saveToBoard 함수 실행, 스타일 별도 지정) -->
                 <button id="saveBtn" class="action-btn"
                     style="background: linear-gradient(135deg, #64748b, #475569); margin-top: 10px;"
                     onclick="saveToBoard()">Save to Board</button>
             </div>
         </div>
 
+        <!-- 상태 메시지 표시 영역 (성공/실패 메시지) -->
         <div id="statusArea"></div>
 
-        <!-- Restored Debug Console -->
+        <!-- 디버그 콘솔 영역 (처리 과정 로그 표시) -->
         <div class="debug-section">
-            <div class="debug-title">Processing Log</div>
+            <div class="debug-title" style="display: flex; justify-content: space-between; align-items: center;">
+                Processing Log
+                <a href="../troubleshoot.html" target="_blank"
+                    style="font-size: 0.7em; color: #38bdf8; text-decoration: none;">🛠️ Troubleshoot DB</a>
+            </div>
+            <!-- 로그가 실제로 출력될 박스 -->
             <div id="debugConsole" class="console-box"></div>
         </div>
 
+        <!-- 저장된 포스트 목록 영역 -->
         <div id="boardSection" class="board-section"
             style="margin-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+            <!-- 목록 제목 -->
             <h3>My Saved Posts (Recent 10)</h3>
+            <!-- 포스트 리스트 (ul 태그, 초기에는 로딩 중 표시) -->
             <ul id="postList" style="list-style: none; padding: 0; margin: 0;">Loading...</ul>
         </div>
 
+        <!-- 사용법 안내 박스 -->
         <div class="info-box"
             style="margin-top: 2rem; font-size: 0.85rem; color: #64748b; background: rgba(0, 0, 0, 0.2); padding: 1rem; border-radius: 8px;">
             <p>📷 <strong>How it works:</strong></p>
@@ -76,8 +118,11 @@
     </div>
 
     <!-- App Script -->
+    <!-- 메인 비즈니스 로직이 담긴 자바스크립트 파일 로드 -->
     <script src="script.js"></script>
 
 </body>
+<!-- 본문 종료 -->
 
 </html>
+<!-- 문서 종료 -->

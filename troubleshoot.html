@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Firestore Troubleshooter (Matrix Scan)</title>
+    <script src="./js/api-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="./js/auth.js"></script>
+    <style>
+        body {
+            background: #1e293b;
+            color: white;
+            font-family: monospace;
+            padding: 20px;
+            font-size: 14px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #38bdf8;
+            border: none;
+            cursor: pointer;
+            color: #0f172a;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        pre {
+            background: #0f172a;
+            padding: 15px;
+            border: 1px solid #334155;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            font-size: 12px;
+        }
+
+        .success {
+            color: #4ade80;
+        }
+
+        .error {
+            color: #f87171;
+        }
+
+        .info {
+            color: #fbbf24;
+        }
+
+        .url {
+            color: #93c5fd;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Firestore Connection Troubleshooter</h1>
+    <div id="authStatus">Checking Auth...</div>
+
+    <div style="background: #334155; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
+        <label>Manual Token Override (Optional):</label>
+        <input type="text" id="manualToken" placeholder="Paste OAuth2 or ID Token here to test..."
+            style="width: 100%; padding: 5px; color: black;">
+        <small style="color: #cbd5e1">Leave empty to use Firebase Auth ID Token automatically.</small>
+    </div>
+
+    <button onclick="runMatrixScan()">Start Full Matrix Scan</button>
+    <div id="result"></div>
+    <div id="logArea"></div>
+
+    <script>
+        if (window.location.protocol === 'file:') {
+            alert("⚠️ WARNING: Run via localhost! (file:// auth fails)");
+        }
+
+        if (window.registerAuthListener) {
+            registerAuthListener(user => {
+                document.getElementById('authStatus').innerHTML = user ?
+                    `Logged in as: <span class="success">${user.email}</span> (UID: ${user.uid})` :
+                    `Not Logged In. <button onclick="loginWithGoogle()">Login</button>`;
+            });
+        }
+
+        async function runMatrixScan() {
+            const logArea = document.getElementById('logArea');
+            logArea.innerHTML = "Initializing Diagnostics...\n";
+
+            const user = firebase.auth().currentUser;
+            const manualToken = document.getElementById('manualToken').value.trim();
+
+            if (!user && !manualToken) {
+                logArea.innerHTML += "\n<span class='error'>Error: Please login or provide a manual token.</span>";
+                return;
+            }
+
+            let token;
+            if (manualToken) {
+                token = manualToken;
+                logArea.innerHTML += `\n<span class="info">Using Manual Token for Test.</span>`;
+            } else {
+                try {
+                    token = await user.getIdToken();
+                    // --- Token Inspection (Debug) ---
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    logArea.innerHTML += `\n[Token Inspection]`;
+                    logArea.innerHTML += `\n  - aud (Project ID): <b style="color:cyan">${payload.aud}</b>`;
+                    logArea.innerHTML += `\n  - iss (Issuer): ${payload.iss}`;
+
+                    if (payload.aud !== API_CONFIG.projectId) {
+                        logArea.innerHTML += `\n<span class="error">CRITICAL MISMATCH: Token Project (${payload.aud}) != Config (${API_CONFIG.projectId})!</span>`;
+                        // Continue anyway to test infrastructure
+                    } else {
+                        logArea.innerHTML += `\n<span class="success">  (Token matches Project ID. Good.)</span>`;
+                    }
+                    // --------------------------------
+                } catch (e) {
+                    logArea.innerHTML += `\n<span class='error'>Token Error: ${e.message}</span>`;
+                    return;
+                }
+            }
+
+            const projectId = API_CONFIG.projectId;
+            const uid = user ? user.uid : 'manual_user';
+
+            // --- 1. Infrastructure Tests (API Key & Project Level) ---
+            logArea.innerHTML += `\n\n[Phase 1: Infrastructure Tests]`;
+
+            // Test 1.1: Metadata Access (Bypasses Security Rules, checks IAM/API Key)
+            const metaUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/default`;
+            logArea.innerHTML += `\nTesting API Key Permissions (Metadata): ${metaUrl}`;
+
+            try {
+                const metaRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(metaUrl)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (metaRes.ok) {
+                    logArea.innerHTML += `\n<span class="success">  SUCCESS (HTTP 200): API Key & Token have valid Firestore Access.</span>`;
+                } else {
+                    const text = await metaRes.text();
+                    if (metaRes.status === 401) {
+                        logArea.innerHTML += `\n<span class="info">  NOTE: HTTP 401 is normal for Phase 1 if using ID Token. Check Phase 2/3.</span>`;
+                    } else {
+                        logArea.innerHTML += `\n<span class="error">  FAILED (HTTP ${metaRes.status}): ${text}</span>`;
+                    }
+                }
+            } catch (e) {
+                logArea.innerHTML += `\n  System Error: ${e.message}`;
+            }
+
+            // --- 2. Data Access Tests (Security Rules Level) ---
+            logArea.innerHTML += `\n\n[Phase 2: Data Access Tests] (Target: Configured Endpoint)`;
+
+            // Test 2.1: Anonymous Access (Should be 403 if rules require auth)
+            // Use the actual endpoint from config to test what the app uses
+            const msgPath = `users/${user.uid}/web_clipper`; // App uses this subcollection
+            const dataUrl = `${API_CONFIG.endpoints.firestore}/${msgPath}`;
+            const proxyDataUrl = `https://corsproxy.io/?${encodeURIComponent(dataUrl)}`;
+
+            logArea.innerHTML += `\nTesting Anonymous Access (No Token):`;
+            const anonRes = await fetch(proxyDataUrl);
+            logArea.innerHTML += ` -> HTTP ${anonRes.status} (Expected: 403)`;
+
+            // Test 2.2: Authenticated Access (Mimic App's runQuery or List)
+            // The app uses :runQuery, but let's try a simple GET on the collection first if rules allow list
+            // Or better, let's try to CREATE a dummy doc if list is blocked, but read is safer.
+            // Let's use runQuery as the App does.
+            logArea.innerHTML += `\nTesting Authenticated Access (With Token & App Pattern):`;
+
+            // Fix: runQuery URL must point to the PARENT document, not the collection.
+            // App uses: .../users/{uid}:runQuery
+            const queryUrl = `${API_CONFIG.endpoints.firestore}/users/${user.uid}:runQuery`;
+            const proxyQueryUrl = `https://corsproxy.io/?${encodeURIComponent(queryUrl)}`;
+
+            const queryBody = { structuredQuery: { from: [{ collectionId: "web_clipper" }], limit: 1 } };
+
+            const authRes = await fetch(proxyQueryUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(queryBody)
+            });
+
+            if (authRes.ok) {
+                logArea.innerHTML += `\n<span class="success">🎉 SUCCESS (HTTP 200): App logic (web_clipper) is accessible!</span>`;
+            } else {
+                const text = await authRes.text();
+                logArea.innerHTML += `\n<span class="error">❌ FAILED (HTTP ${authRes.status}): ${text}</span>`;
+                if (authRes.status === 403) {
+                    logArea.innerHTML += `\n  -> Rules blocked access to 'web_clipper'. Check Firestore Rules.`;
+                }
+            }
+
+            // --- Matrix Configuration ---
+            const dbIDs = ['(default)', 'default'];
+            const regions = [
+                { name: 'Global', host: 'firestore.googleapis.com' },
+                { name: 'Seoul (asia-northeast3)', host: 'asia-northeast3-firestore.googleapis.com' },
+                { name: 'Tokyo (asia-northeast1)', host: 'asia-northeast1-firestore.googleapis.com' },
+                { name: 'Osaka (asia-northeast2)', host: 'asia-northeast2-firestore.googleapis.com' },
+                { name: 'US-Central (us-central1)', host: 'us-central1-firestore.googleapis.com' },
+                { name: 'US-East (us-east1)', host: 'us-east1-firestore.googleapis.com' }
+            ];
+
+            logArea.innerHTML += `Target Project: <b>${projectId}</b>\n`;
+            logArea.innerHTML += `Testing User Access: /users/${uid} (Allowed via Rules)\n`;
+
+            let found = false;
+
+            for (const dbId of dbIDs) {
+                for (const region of regions) {
+                    if (found) break;
+
+                    logArea.innerHTML += `\n---------------------------------------------------`;
+                    logArea.innerHTML += `\nTesting: [DB: <b>${dbId}</b>] @ [Region: <b>${region.name}</b>]`;
+
+                    try {
+                        // 1. Construct URL (Full Logging Requested)
+                        // Try accessing the specific User Document allowed by rules to bypassing root blocking
+                        const path = `projects/${projectId}/databases/${dbId}/documents/users/${uid}`;
+                        const url = `https://${region.host}/v1/${path}`;
+                        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+
+                        logArea.innerHTML += `\n<span class="url">Request URL: ${url}</span>`;
+
+                        // 2. Execute via Proxy (to bypass CORS)
+                        const response = await fetch(proxyUrl, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+
+                        const status = response.status;
+                        let statusText = response.statusText;
+
+                        // Determine Outcome
+                        let resultHtml = "";
+                        if (response.ok) {
+                            resultHtml = `<span class="success">HTTP ${status} OK (FOUND!)</span>`;
+                            found = { dbId, host: region.host, region: region.name };
+                        } else if (status === 404) {
+                            resultHtml = `<span class="error">HTTP 404 Not Found</span>`;
+                            // Try to read error message if possible
+                            try {
+                                const errJson = await response.json();
+                                if (errJson.error && errJson.error.message) {
+                                    resultHtml += ` <span class="info">Msg: ${errJson.error.message}</span>`;
+                                }
+                            } catch (e) { }
+                        } else if (status === 403) {
+                            // 403 means DB exists! Just denied.
+                            resultHtml = `<span class="success">HTTP 403 Forbidden (DB EXISTS!)</span>`;
+                            found = { dbId, host: region.host, region: region.name, note: "Rules blocked access but DB is confirmed." };
+                        } else {
+                            resultHtml = `<span class="info">HTTP ${status} ${statusText}</span>`;
+                        }
+
+                        logArea.innerHTML += `\nResult: ${resultHtml}`;
+
+                    } catch (e) {
+                        logArea.innerHTML += `\n<span class="error">System Error: ${e.message}</span>`;
+                    }
+                }
+            }
+
+            logArea.innerHTML += `\n---------------------------------------------------`;
+            if (found) {
+                logArea.innerHTML += `\n\n<h2 class="success">🎉 SOLUTION FOUND!</h2>`;
+                logArea.innerHTML += `\n<b>Correct Database ID:</b> ${found.dbId}`;
+                logArea.innerHTML += `\n<b>Correct Host:</b> ${found.host} (${found.region})`;
+                logArea.innerHTML += `\n\nUpdates needed in <code>js/api-config.js</code>:`;
+                logArea.innerHTML += `\n<pre>endpoints: {\n    firestore: 'https://${found.host}/v1/projects/${projectId}/databases/${found.dbId}/documents'\n}</pre>`;
+
+                // --- Phase 3: Deep Probe (Request by User) ---
+                logArea.innerHTML += `\n\n[Phase 3: Deep Probe on Target]`;
+                logArea.innerHTML += `\nTarget URL Base: https://${found.host}/v1/projects/${projectId}/databases/${found.dbId}/documents`;
+
+                // Test 3.1: List Root Collections (GET)
+                const listUrl = `https://${found.host}/v1/projects/${projectId}/databases/${found.dbId}/documents`;
+                logArea.innerHTML += `\nTest 3.1: List Collections (GET) ... `;
+                try {
+                    const listRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(listUrl)}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    logArea.innerHTML += `HTTP ${listRes.status}`;
+                    if (!listRes.ok) {
+                        const txt = await listRes.text();
+                        logArea.innerHTML += ` (${txt.substring(0, 50)}...)`;
+                    }
+                } catch (e) { logArea.innerHTML += `Error: ${e.message}`; }
+
+                // Test 3.2: Run Query (POST) - Mimics App Behavior
+                const queryUrl = `https://${found.host}/v1/projects/${projectId}/databases/${found.dbId}/documents:runQuery`;
+                logArea.innerHTML += `\nTest 3.2: Run Query (POST) ... `;
+                try {
+                    const queryBody = { structuredQuery: { from: [{ collectionId: "web_clipper" }], limit: 1 } };
+                    const queryRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(queryUrl)}`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(queryBody)
+                    });
+                    logArea.innerHTML += `HTTP ${queryRes.status}`;
+                    if (!queryRes.ok) {
+                        const txt = await queryRes.text();
+                        logArea.innerHTML += ` (${txt.substring(0, 50)}...)`;
+                    } else {
+                        logArea.innerHTML += ` <span class="success">SUCCESS!</span>`;
+                    }
+                } catch (e) { logArea.innerHTML += `Error: ${e.message}`; }
+
+                // Test 3.3: Write Document (Create) - Mimics Save Action
+                // Target: users/{uid}/troubleshoot_logs (Temporary)
+                const writeUrl = `https://${found.host}/v1/projects/${projectId}/databases/${found.dbId}/documents/users/${uid}/troubleshoot_logs`;
+                logArea.innerHTML += `\nTest 3.3: Write Doc (POST) ... `;
+                try {
+                    const writeBody = {
+                        fields: {
+                            message: { stringValue: "Troubleshoot Test" },
+                            timestamp: { timestampValue: new Date().toISOString() }
+                        }
+                    };
+                    // Note: We append ?key=API_KEY if possible, but for Proxy we rely on Authorization header mostly.
+                    // The App uses ?key=... so let's try to simulate that if we could, but Proxy logic complex.
+                    // We will just test pure Token Write permission.
+                    const writeRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(writeUrl)}`, {
+                        method: 'POST',
+                        body: JSON.stringify(writeBody),
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    logArea.innerHTML += `HTTP ${writeRes.status}`;
+                    if (writeRes.ok) {
+                        logArea.innerHTML += ` <span class="success">SUCCESS! (Write Allowed)</span>`;
+                    } else {
+                        const txt = await writeRes.text();
+                        logArea.innerHTML += ` <span class="error">FAILED</span> (${txt.substring(0, 50)}...)`;
+                    }
+                } catch (e) { logArea.innerHTML += `Error: ${e.message}`; }
+
+            } else {
+                logArea.innerHTML += `\n\n<h2 class="error">❌ ALL TESTS FAILED (404)</h2>`;
+                logArea.innerHTML += `\npossible causes:`;
+                logArea.innerHTML += `\n1. The Project ID 'oopspublic' is incorrect (Check URL in console).`;
+                logArea.innerHTML += `\n2. The Database was lazily deleted or disabled.`;
+                logArea.innerHTML += `\n3. An extremely rare region is used (e.g. europe-west).`;
+            }
+        }
+    </script>
+</body>
+
+</html>
