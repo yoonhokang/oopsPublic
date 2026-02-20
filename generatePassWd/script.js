@@ -37,21 +37,34 @@
 
     /**
      * Generates a secure random number within a range.
+     * [STAB-02] Rejection Sampling으로 모듈러 바이어스 제거
      * @param {number} max - The upper bound (exclusive).
      * @returns {number} A random integer between 0 and max-1.
      */
     function secureRandom(max) {
+        if (max <= 0) return 0;
         const array = new Uint32Array(1);
-        window.crypto.getRandomValues(array);
+        // max의 배수 중 0x100000000 이하 최대값을 한계로 설정
+        const limit = Math.floor(0x100000000 / max) * max;
+        do {
+            window.crypto.getRandomValues(array);
+        } while (array[0] >= limit);
         return array[0] % max;
     }
 
     /**
      * Logs messages to the specific debug console and browser console.
+     * [MAINT-01] window.Logger 중앙 로깅 시스템과도 연동
      * @param {string} message - The message to log.
      * @param {string} [type='info'] - Log type: 'info', 'warn', 'error', 'success'.
      */
     function log(message, type = 'info') {
+        // 중앙 Logger로 전달
+        if (window.Logger) {
+            const fn = window.Logger[type] || window.Logger.info;
+            fn(message);
+        }
+
         const consoleEl = document.getElementById('debugConsole');
         if (consoleEl) {
             const entry = document.createElement('div');
@@ -61,7 +74,6 @@
             consoleEl.appendChild(entry);
             consoleEl.scrollTop = consoleEl.scrollHeight;
         }
-        // console.log(`[${type.toUpperCase()}] ${message}`); // Removed for Production Cleanliness
     }
 
     /**

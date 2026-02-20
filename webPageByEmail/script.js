@@ -29,30 +29,14 @@
         });
     }
 
-    const statusArea = document.getElementById('statusArea');
-    const sendBtn = document.getElementById('sendBtn');
-    const saveBtn = document.getElementById('saveBtn');
-    const urlInput = document.getElementById('urlInput');
-    const debugConsole = document.getElementById('debugConsole');
+    // [STAB-01] DOM 참조를 변수 선언만 수행 (실제 참조는 DOMContentLoaded에서)
+    let statusArea = null;
+    let sendBtn = null;
+    let saveBtn = null;
+    let urlInput = null;
+    let debugConsole = null;
 
-    // Inject Search Input if not exists
-    const boardSection = document.getElementById('boardSection');
-    let searchContainer = document.getElementById('searchContainer');
-    if (!searchContainer && boardSection) {
-        searchContainer = document.createElement('div');
-        searchContainer.id = 'searchContainer';
-        searchContainer.style.marginBottom = '1rem';
-        searchContainer.innerHTML = `
-            <input type="text" id="searchInput" placeholder="Search saved posts..." 
-                style="width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px;">
-        `;
-        boardSection.insertBefore(searchContainer, boardSection.querySelector('ul'));
-
-        const input = searchContainer.querySelector('input');
-        input.addEventListener('input', (e) => {
-            renderBoard(e.target.value);
-        });
-    }
+    // 검색 입력 필드 주입은 DOMContentLoaded에서 수행 (STAB-01)
 
     // Helper: Log
     function log(message, type = 'info') {
@@ -463,28 +447,33 @@
                 </div>
             `;
 
-            // [보안] sanitizeHtml()로 정제 후 DOM 삽입 (innerHTML 직접 삽입 금지)
+            // [PERF-01] Lazy Sanitize — 아코디언 최초 펼침 시점에 1회만 실행
             const toggleBtn = li.querySelector('.toggle-btn');
             const contentDiv = li.querySelector('.post-content');
-            contentDiv.innerHTML = sanitizeHtml(post.content);
+            let sanitized = false;
 
             toggleBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
+
+                // [PERF-01] 최초 펼침 시점에 sanitize 실행 (Lazy)
+                if (!sanitized) {
+                    contentDiv.innerHTML = sanitizeHtml(post.content);
+                    sanitized = true;
+                }
 
                 // 1. Close all OTHER open items
                 document.querySelectorAll('.post-content').forEach(el => {
                     if (el !== contentDiv) {
                         el.style.display = 'none';
-                        // Reset other buttons
                         const otherBtn = el.parentElement.querySelector('.toggle-btn');
-                        if (otherBtn) otherBtn.innerHTML = '&#9656;'; // Right arrow
+                        if (otherBtn) otherBtn.innerHTML = '&#9656;';
                     }
                 });
 
                 // 2. Toggle CURRENT item
                 const isHidden = contentDiv.style.display === 'none';
                 contentDiv.style.display = isHidden ? 'block' : 'none';
-                toggleBtn.innerHTML = isHidden ? '&#9662;' : '&#9656;'; // Down arrow vs Right arrow
+                toggleBtn.innerHTML = isHidden ? '&#9662;' : '&#9656;';
             });
 
             li.querySelector('.delete-btn').addEventListener('click', (e) => {
@@ -575,12 +564,36 @@
         }
     }
 
-    // [MAINT] 전역 window 노출 제거 - DOMContentLoaded에서 직접 addEventListener로 연결
+    // [STAB-01] DOMContentLoaded에서 모든 DOM 참조 초기화
     document.addEventListener('DOMContentLoaded', () => {
-        const sendBtnEl = document.getElementById('sendBtn');
-        const saveBtnEl = document.getElementById('saveBtn');
-        if (sendBtnEl) sendBtnEl.addEventListener('click', processAndSend);
-        if (saveBtnEl) saveBtnEl.addEventListener('click', saveToBoard);
+        statusArea = document.getElementById('statusArea');
+        sendBtn = document.getElementById('sendBtn');
+        saveBtn = document.getElementById('saveBtn');
+        urlInput = document.getElementById('urlInput');
+        debugConsole = document.getElementById('debugConsole');
+
+        // 버튼 이벤트 연결
+        if (sendBtn) sendBtn.addEventListener('click', processAndSend);
+        if (saveBtn) saveBtn.addEventListener('click', saveToBoard);
+
+        // 검색 입력 필드 주입
+        const boardSection = document.getElementById('boardSection');
+        let searchContainer = document.getElementById('searchContainer');
+        if (!searchContainer && boardSection) {
+            searchContainer = document.createElement('div');
+            searchContainer.id = 'searchContainer';
+            searchContainer.style.marginBottom = '1rem';
+            searchContainer.innerHTML = `
+                <input type="text" id="searchInput" placeholder="Search saved posts..."
+                    style="width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px;">
+            `;
+            boardSection.insertBefore(searchContainer, boardSection.querySelector('ul'));
+
+            const input = searchContainer.querySelector('input');
+            input.addEventListener('input', (e) => {
+                renderBoard(e.target.value);
+            });
+        }
     });
 
 })()

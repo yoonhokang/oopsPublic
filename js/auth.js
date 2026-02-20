@@ -86,26 +86,56 @@
         const authContainer = document.getElementById('authContainer');
         if (!authContainer) return;
 
+        // [SEC-01] 기존 내용 제거 (innerHTML 직접 삽입 대신 DOM API 사용 — XSS 방어)
+        authContainer.innerHTML = '';
+
         if (user) {
-            authContainer.innerHTML = `
-                <div class="user-profile" style="display: flex; align-items: center; gap: 10px;">
-                    <img src="${user.photoURL}" alt="Profile" class="user-avatar" style="width: 32px; height: 32px; border-radius: 50%;">
-                    <span class="user-name" style="color: white; font-weight: bold;">${user.displayName}</span>
-                </div>
-                <button class="auth-btn" id="logoutBtn" style="margin-left: 10px; padding: 5px 15px; cursor: pointer; background: #ef4444; color: white; border: none; border-radius: 6px;">Logout</button>
-            `;
-            // Add event listener programmatically to avoid inline 'onclick' issues in strict/CSP environments
-            document.getElementById('logoutBtn').addEventListener('click', logout);
+            const profileDiv = document.createElement('div');
+            profileDiv.className = 'user-profile';
+            profileDiv.style.cssText = 'display: flex; align-items: center; gap: 10px;';
+
+            const avatar = document.createElement('img');
+            avatar.className = 'user-avatar';
+            avatar.style.cssText = 'width: 32px; height: 32px; border-radius: 50%;';
+            avatar.alt = 'Profile';
+            // photoURL은 Firebase가 반환하는 값이라 비교적 안전하지만,
+            // 원본 도메인만 허용 (CSP img-src에서 제어 가능)
+            avatar.src = user.photoURL || '';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'user-name';
+            nameSpan.style.cssText = 'color: white; font-weight: bold;';
+            // [SEC-01] textContent 사용 — HTML 인젝션 불가
+            nameSpan.textContent = user.displayName || '';
+
+            profileDiv.appendChild(avatar);
+            profileDiv.appendChild(nameSpan);
+            authContainer.appendChild(profileDiv);
+
+            const logoutBtn = document.createElement('button');
+            logoutBtn.className = 'auth-btn';
+            logoutBtn.id = 'logoutBtn';
+            logoutBtn.style.cssText = 'margin-left: 10px; padding: 5px 15px; cursor: pointer; background: #ef4444; color: white; border: none; border-radius: 6px;';
+            logoutBtn.textContent = 'Logout';
+            logoutBtn.addEventListener('click', logout);
+            authContainer.appendChild(logoutBtn);
         } else {
             // Show Google Login Button
-            authContainer.innerHTML = `
-                <button class="auth-btn login-btn" id="loginBtn" 
-                    style="padding: 8px 16px; cursor: pointer; background: white; color: #444; border: 1px solid #ddd; border-radius: 6px; font-weight: bold; display: flex; align-items: center; gap: 8px;">
-                    <img src="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath fill='%23EA4335' d='M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z'/%3E%3Cpath fill='%234285F4' d='M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z'/%3E%3Cpath fill='%23FBBC05' d='M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z'/%3E%3Cpath fill='%2334A853' d='M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z'/%3E%3Cpath fill='none' d='M0 0h48v48H0z'/%3E%3C/svg%3E" width="18" height="18" alt="G">
-                    Sign in with Google
-                </button>
-            `;
-            document.getElementById('loginBtn').addEventListener('click', loginWithGoogle);
+            const loginBtn = document.createElement('button');
+            loginBtn.className = 'auth-btn login-btn';
+            loginBtn.id = 'loginBtn';
+            loginBtn.style.cssText = 'padding: 8px 16px; cursor: pointer; background: white; color: #444; border: 1px solid #ddd; border-radius: 6px; font-weight: bold; display: flex; align-items: center; gap: 8px;';
+
+            const googleIcon = document.createElement('img');
+            googleIcon.src = "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath fill='%23EA4335' d='M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z'/%3E%3Cpath fill='%234285F4' d='M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z'/%3E%3Cpath fill='%23FBBC05' d='M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z'/%3E%3Cpath fill='%2334A853' d='M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z'/%3E%3Cpath fill='none' d='M0 0h48v48H0z'/%3E%3C/svg%3E";
+            googleIcon.width = 18;
+            googleIcon.height = 18;
+            googleIcon.alt = 'G';
+
+            loginBtn.appendChild(googleIcon);
+            loginBtn.appendChild(document.createTextNode('Sign in with Google'));
+            loginBtn.addEventListener('click', loginWithGoogle);
+            authContainer.appendChild(loginBtn);
         }
     }
 
@@ -129,9 +159,8 @@
         });
     }
 
-    // Export functions globally
-    window.loginWithGoogle = loginWithGoogle;
-    window.logout = logout;
+    // [MAINT-02] loginWithGoogle, logout은 내부에서만 사용 (renderAuthUI내 addEventListener)
+    // 외부 모듈에서 호출하는 함수만 전역 노출
     window.getAuthIdToken = getAuthIdToken;
     window.registerAuthListener = registerAuthListener;
 
