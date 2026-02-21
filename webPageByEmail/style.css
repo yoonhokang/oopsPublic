@@ -198,6 +198,20 @@ button.action-btn:disabled {
 }
 
 /* ──────────────────────────────────────────────
+   7-1. 저장된 페이지 콘텐츠 — 가로 폭 최대 활용
+   ────────────────────────────────────────────── */
+.post-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+.post-content img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* ──────────────────────────────────────────────
    8. 게시판 아이템 레이아웃
    - 데스크톱: 가로 배치 (제목 + 날짜/삭제 버튼)
    - 모바일: 세로 배치

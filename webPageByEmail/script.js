@@ -475,7 +475,7 @@
                 </div>
                 
                 <!-- Expanded Content Area (콘텐츠는 JS로 별도 삽입 - XSS 방지) -->
-                <div class="post-content" style="display: none; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 0.5rem; padding-top: 1rem; color: #cbd5e1; font-size: 0.95rem; overflow-x: auto; background: rgba(0,0,0,0.2); border-radius: 4px; padding: 15px;">
+                <div class="post-content" style="display: none; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 0.5rem; padding-top: 1rem; color: #cbd5e1; font-size: 0.95rem; overflow-x: auto; background: rgba(0,0,0,0.2); border-radius: 4px; padding: 10px 5px; width: 100%; box-sizing: border-box;">
                 </div>
             `;
 
