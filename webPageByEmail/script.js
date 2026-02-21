@@ -275,7 +275,7 @@
 
         // 7. Flatten layout significantly
         return `
-            <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; background: #fff;">
+            <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 100%; margin: 0; padding: 20px; background: #fff; box-sizing: border-box;">
                 <p style="font-size: 0.8em; color: #666; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 20px;">
                     Source: <a href="${baseUrl}" style="color:#666; text-decoration:none;">${baseUrl}</a>
                 </p>

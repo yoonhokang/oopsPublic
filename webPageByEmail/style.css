@@ -206,6 +206,13 @@ button.action-btn:disabled {
     box-sizing: border-box !important;
 }
 
+/* 기존 DB 데이터 호환: cleanHtml()이 삽입한 max-width: 800px 인라인 스타일 재정의 */
+.post-content>div {
+    max-width: 100% !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+}
+
 .post-content img {
     max-width: 100%;
     height: auto;
