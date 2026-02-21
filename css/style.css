@@ -201,7 +201,9 @@ h1 {
     border-radius: 16px;
     padding: 2.5rem;
     width: 90%;
-    max-width: 600px;
+    /* 화면 폭의 90% 사용 (양쪽 5% 여백) */
+    max-width: none;
+    /* 고정 폭 제한 없음 */
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
     margin: 0 auto 4rem auto;
     box-sizing: border-box;
