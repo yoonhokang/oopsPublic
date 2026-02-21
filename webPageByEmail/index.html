@@ -73,7 +73,10 @@
             <!-- 입력 필드 라벨 -->
             <label for="urlInput">Target URL</label>
             <!-- [UX-03] type="url"로 변경 — CSS 스타일 적용 + 브라우저 URL 유효성 검증 -->
-            <input type="url" id="urlInput" placeholder="https://example.com/article">
+            <div class="url-input-wrapper">
+                <input type="url" id="urlInput" placeholder="https://example.com/article">
+                <button id="clearUrlBtn" class="clear-btn" type="button" title="URL 지우기">&times;</button>
+            </div>
 
             <!-- 버튼들을 감싸는 그룹 -->
             <div class="button-group">

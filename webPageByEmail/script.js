@@ -470,7 +470,10 @@
                     
                     <div class="board-item-meta">
                         <div style="font-size: 0.8rem; color: #64748b;">${dateStr}</div>
-                        <button class="delete-btn" data-id="${post.id}" style="background: #ef4444; border: none; border-radius: 4px; color: white; padding: 4px 8px; cursor: pointer; font-size: 0.8rem;">Delete</button>
+                        <div style="display: flex; gap: 6px;">
+                            <button class="email-btn" style="background: #3b82f6; border: none; border-radius: 4px; color: white; padding: 4px 8px; cursor: pointer; font-size: 0.8rem;">📧 Email</button>
+                            <button class="delete-btn" data-id="${post.id}" style="background: #ef4444; border: none; border-radius: 4px; color: white; padding: 4px 8px; cursor: pointer; font-size: 0.8rem;">Delete</button>
+                        </div>
                     </div>
                 </div>
                 
@@ -508,6 +511,11 @@
                 toggleBtn.innerHTML = isHidden ? '&#9662;' : '&#9656;';
             });
 
+            li.querySelector('.email-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                emailSavedPost(post);
+            });
+
             li.querySelector('.delete-btn').addEventListener('click', (e) => {
                 e.stopPropagation();
                 deletePost(e.target.dataset.id);
@@ -515,6 +523,37 @@
 
             listEl.appendChild(li);
         });
+    }
+
+    /**
+     * 저장된 포스트 콘텐츠를 클립보드에 복사하고 이메일 클라이언트를 엽니다.
+     * 기존 processAndSend()와 동일한 UX이지만, URL에서 다시 fetch하지 않고
+     * DB에 이미 저장된 content를 사용합니다.
+     * @param {Object} post - { title, url, content } 포스트 객체
+     */
+    async function emailSavedPost(post) {
+        try {
+            const safeHtml = sanitizeHtml(post.content);
+            const blobHtml = new Blob([safeHtml], { type: "text/html" });
+            const blobText = new Blob([post.url || ''], { type: "text/plain" });
+
+            await navigator.clipboard.write([
+                new ClipboardItem({ "text/html": blobHtml, "text/plain": blobText })
+            ]);
+
+            showStatus("Content Copied! Opening Email...", "success");
+            log(`Email: "${post.title}" copied to clipboard`, 'success');
+
+            const subject = `Web Page: ${post.title || 'Saved Post'}`;
+            const body = `Original URL: ${post.url || 'N/A'}\n\n[Paste content here]`;
+            setTimeout(() => {
+                window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            }, 500);
+
+        } catch (error) {
+            log(`Email Error: ${error.message}`, 'error');
+            showStatus(`Email failed: ${error.message}`, 'error');
+        }
     }
 
     async function saveToBoard() {
@@ -607,6 +646,15 @@
         // 버튼 이벤트 연결
         if (sendBtn) sendBtn.addEventListener('click', processAndSend);
         if (saveBtn) saveBtn.addEventListener('click', saveToBoard);
+
+        // URL 입력 필드 클리어 버튼
+        const clearUrlBtn = document.getElementById('clearUrlBtn');
+        if (clearUrlBtn && urlInput) {
+            clearUrlBtn.addEventListener('click', () => {
+                urlInput.value = '';
+                urlInput.focus();
+            });
+        }
 
         // 검색 입력 필드 주입
         const boardSection = document.getElementById('boardSection');
