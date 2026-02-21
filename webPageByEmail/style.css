@@ -201,16 +201,9 @@ button.action-btn:disabled {
    7-1. 저장된 페이지 콘텐츠 — 가로 폭 최대 활용
    ────────────────────────────────────────────── */
 .post-content {
-    width: 100% !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-}
-
-/* 기존 DB 데이터 호환: cleanHtml()이 삽입한 max-width: 800px 인라인 스타일 재정의 */
-.post-content>div {
-    max-width: 100% !important;
-    margin: 0 !important;
-    box-sizing: border-box !important;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .post-content img {
