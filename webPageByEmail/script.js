@@ -325,13 +325,14 @@
             const blobText = new Blob([url], { type: "text/plain" });
 
             await navigator.clipboard.write([new ClipboardItem({ "text/html": blobHtml, "text/plain": blobText })]);
-            showStatus("Content Copied! Opening Email...", "success");
+            showStatus("✅ 클립보드에 복사 완료! 이메일 본문에서 Ctrl+V를 눌러 붙여넣기 하세요.", "success");
+            log("Clipboard copy success — opening email client", 'success');
 
             const subject = `Web Page: ${new URL(url).hostname}`;
-            const body = `Original URL: ${url}\n\n[Paste content here]`;
+            const body = `[아래에 Ctrl+V로 붙여넣기 해주세요]\n\nOriginal URL: ${url}`;
             setTimeout(() => {
                 window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-            }, 500);
+            }, 800);
 
         } catch (error) {
             log(`Error: ${error.message}`, 'error');
@@ -541,14 +542,14 @@
                 new ClipboardItem({ "text/html": blobHtml, "text/plain": blobText })
             ]);
 
-            showStatus("Content Copied! Opening Email...", "success");
+            showStatus("✅ 클립보드에 복사 완료! 이메일 본문에서 Ctrl+V를 눌러 붙여넣기 하세요.", "success");
             log(`Email: "${post.title}" copied to clipboard`, 'success');
 
             const subject = `Web Page: ${post.title || 'Saved Post'}`;
-            const body = `Original URL: ${post.url || 'N/A'}\n\n[Paste content here]`;
+            const body = `[아래에 Ctrl+V로 붙여넣기 해주세요]\n\nOriginal URL: ${post.url || 'N/A'}`;
             setTimeout(() => {
                 window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-            }, 500);
+            }, 800);
 
         } catch (error) {
             log(`Email Error: ${error.message}`, 'error');
