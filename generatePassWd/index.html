@@ -4,44 +4,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Hybrid Auth Migration: SDK Authentication + REST DB
-         - connect-src: firebaseio.com (SDK Auth Handshake), identitytoolkit (REST Auth), firestore (REST DB)
-         - script-src: gstatic (SDK)
-    -->
+
+    <!-- CSP (Content Security Policy): 이 페이지에서 허용하는 리소스 출처 정의 -->
     <meta http-equiv="Content-Security-Policy"
         content="default-src 'self' 'unsafe-inline' https://*.googleapis.com; connect-src 'self' https://api.rss2json.com https://identitytoolkit.googleapis.com https://www.googleapis.com https://*.googleapis.com https://firestore.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com https://*.firebase.com https://securetoken.googleapis.com https://*.google.com; img-src * data: https://*.googleusercontent.com; script-src 'self' 'unsafe-inline' https://*.gstatic.com https://*.googleapis.com https://*.google.com; frame-src 'self' https://*.firebaseapp.com https://*.google.com;">
 
     <title>Secure Password Generator</title>
+    <!-- 파비콘: 자물쇠 이모지 -->
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔒</text></svg>">
 
-    <!-- External Styles -->
-    <link rel="stylesheet" href="../css/style.css?v=260220_1330">
+    <!-- ─── 스타일시트 ─── -->
+    <!-- 공통 스타일 (프로젝트 루트) -->
+    <link rel="stylesheet" href="../css/style.css?v=260221_1100">
+    <!-- 이 페이지 전용 스타일 -->
+    <link rel="stylesheet" href="style.css?v=260221_1100">
 
-    <!-- Local Styles -->
-    <link rel="stylesheet" href="style.css?v=260220_1330">
-
-    <!-- Firebase SDKs RESTORED (Hybrid Auth) -->
+    <!--
+        ─── Firebase SDK (인증 전용) ───
+        v8.x compat 모드로 로드하여 글로벌 firebase 객체 사용
+    -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
-    <!-- Shared Scripts (Hybrid Auth) -->
-    <script src="../js/api-config.js?v=260220_1330"></script>
-    <script src="../js/debug-monitor.js?v=260220_1330"></script> <!-- DEBUG Added -->
-    <script src="../js/auth.js?v=260220_1330"></script>
+    <!--
+        ─── 공통 JavaScript (로드 순서 중요!) ───
+        api-config.js → debug-monitor.js → auth.js 순서 필수
+    -->
+    <script src="../js/api-config.js?v=260221_1100"></script>
+    <script src="../js/debug-monitor.js?v=260221_1100"></script>
+    <script src="../js/auth.js?v=260221_1100"></script>
 </head>
 
 <body>
-
+    <!-- ─── 헤더: 뒤로가기 + 인증 UI ─── -->
     <header
         style="display: flex; justify-content: space-between; padding: 1.5rem; align-items: center; max-width: 1200px; margin: 0 auto; width: 100%; box-sizing: border-box;">
         <a href="../index.html" class="back-btn" style="position: static;">&larr; Home</a>
+        <!-- auth.js가 로그인/프로필 UI를 동적 삽입 -->
         <div id="authContainer" class="auth-container">Dev Check</div>
     </header>
 
+    <!-- ─── 메인 도구 영역 ─── -->
     <main class="tool-container">
         <h1>Password Generator</h1>
 
+        <!-- 입력 영역: 용도 + 비밀번호 길이 + 생성 버튼 -->
         <div class="input-group">
             <label for="usage">Usage Service (Optional)</label>
             <input type="text" id="usage" placeholder="e.g. Google, Naver, Company Portal"
@@ -50,39 +58,41 @@
             <label for="length">Password Length (Min: 8)</label>
             <div class="controls">
                 <input type="number" id="length" value="8" min="8" max="64">
-                <!-- [MAINT] onclick 제거 → script.js addEventListener로 연결 -->
+                <!-- script.js에서 addEventListener로 이벤트 연결 (인라인 onclick 미사용) -->
                 <button id="generateBtn" class="generate-btn">Generate Secure Password</button>
             </div>
         </div>
 
+        <!-- 결과 표시 영역 (생성 전에는 숨김) -->
         <div class="result-section" id="resultSection" style="display: none;">
-            <!-- [MAINT] onclick 제거 → script.js addEventListener로 연결 -->
             <div class="password-display" id="passwordDisplay" title="Click to copy">
                 <div class="copy-hint">Click to copy</div>
+                <!-- 생성된 비밀번호 텍스트 -->
                 <div class="password-text" id="passwordOutput"></div>
 
+                <!-- 니모닉(기억술): 비밀번호의 원본 문장 표시 -->
                 <div class="mnemonic-container">
                     <span class="mnemonic-label">Source Sentence (Password derived from initials)</span>
                     <div class="mnemonic-text" id="mnemonicOutput"></div>
                 </div>
             </div>
 
-            <!-- [MAINT] onclick 제거, id 추가 → script.js addEventListener로 연결 -->
+            <!-- 이메일로 비밀번호 전송 버튼 -->
             <button id="sendEmailBtn" class="generate-btn"
                 style="margin-top: 1rem; background: linear-gradient(135deg, #10b981, #059669);">
                 📧 Send via Email
             </button>
         </div>
 
-        <!-- Restored Debug Console -->
+        <!-- ─── 디버그 콘솔 (처리 과정 로그 표시) ─── -->
         <div class="debug-section">
             <div class="debug-title">Processing Log</div>
             <div id="debugConsole" class="console-box"></div>
         </div>
     </main>
 
-    <!-- App Script (버전 업데이트: 260220_1736) -->
-    <script src="script.js?v=260220_1736"></script>
+    <!-- 메인 비즈니스 로직 -->
+    <script src="script.js?v=260221_1100"></script>
 
 </body>
 

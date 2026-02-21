@@ -1,47 +1,76 @@
 <!DOCTYPE html>
-<html lang="en">
+<!-- HTML5 문서 형식 선언 -->
+<html lang="ko">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Hybrid Mode: SDK Auth + REST DB
-         - connect-src: Added firebaseio.com (for SDK auth handshake)
-         - script-src: Allowed gstatic and unsafe-inline (required for SDK)
+
+    <!--
+        ╔══════════════════════════════════════════════════════════╗
+        ║  CSP (Content Security Policy) — 콘텐츠 보안 정책       ║
+        ╠══════════════════════════════════════════════════════════╣
+        ║  브라우저에게 "이 출처에서 온 리소스만 허용해!"라고      ║
+        ║  명시하는 보안 규칙입니다.                               ║
+        ║                                                          ║
+        ║  • default-src: 기본 허용 출처                          ║
+        ║  • script-src: JavaScript 파일 출처                      ║
+        ║  • style-src: CSS 파일 출처                              ║
+        ║  • connect-src: fetch/XHR 요청 허용 대상                 ║
+        ║  • img-src: 이미지 출처                                  ║
+        ║  • frame-src: iframe 삽입 허용 출처                      ║
+        ║                                                          ║
+        ║  ※ 'unsafe-inline'은 Firebase Auth SDK 호환을            ║
+        ║    위해 script-src에 유지 중 (제거하면 로그인 불가)       ║
+        ╚══════════════════════════════════════════════════════════╝
     -->
-    <!-- [SEC-03] CSP: default-src에서 unsafe-inline 제거. script-src는 Firebase Auth SDK compat 요구사항으로 유지 -->
     <meta http-equiv="Content-Security-Policy"
         content="default-src 'self' https://*.googleapis.com; script-src 'self' 'unsafe-inline' https://*.gstatic.com https://*.googleapis.com https://*.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://*.googleusercontent.com https://via.placeholder.com; connect-src 'self' https://api.allorigins.win https://corsproxy.io https://api.codetabs.com https://identitytoolkit.googleapis.com https://www.googleapis.com https://*.googleapis.com https://firestore.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com https://*.firebase.com https://securetoken.googleapis.com https://accounts.google.com https://*.google.com https://*.gstatic.com; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://*.google.com;">
+
     <title>My Developer Tools</title>
+    <!-- 파비콘: SVG 이모지를 data URI로 삽입 (별도 파일 불필요) -->
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛠️</text></svg>">
 
-    <!-- External Styles -->
-    <link rel="stylesheet" href="./css/style.css?v=260220_1330">
+    <!-- ─── CSS 스타일시트 ─── -->
+    <!-- 전체 페이지에서 공유하는 공통 스타일 -->
+    <link rel="stylesheet" href="./css/style.css?v=260221_1100">
 
-    <!-- Firebase SDKs RESTORED for Hybrid Auth -->
+    <!--
+        ─── Firebase SDK (인증 전용) ───
+        Google 로그인 팝업 기능을 위해 Firebase SDK를 로드합니다.
+        v8.x는 "compat" 모드로 글로벌 firebase 객체를 사용합니다.
+    -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
-    <!-- Global Scripts (Order Matters) -->
-    <!-- 1. API Configuration -->
-    <script src="./js/api-config.js?v=260220_1330"></script>
-    <!-- DEBUG: Monitor for CSP violations -->
-    <script src="./js/debug-monitor.js?v=260220_1330"></script>
-    <!-- 2. Authentication Logic (SDK Wrapper) -->
-    <script src="./js/auth.js?v=260220_1330"></script>
+    <!--
+        ─── 공통 JavaScript (로드 순서 중요!) ───
+        1. api-config.js  : Firebase 설정값 + API 엔드포인트 정의
+        2. debug-monitor.js : 에러 감지 + 로깅 시스템 (window.Logger)
+        3. auth.js         : 로그인/로그아웃 + 인증 UI 렌더링
+        ※ 순서가 바뀌면 참조 오류(undefined) 발생!
+    -->
+    <script src="./js/api-config.js?v=260221_1100"></script>
+    <script src="./js/debug-monitor.js?v=260221_1100"></script>
+    <script src="./js/auth.js?v=260221_1100"></script>
 </head>
 
 <body>
+    <!-- ─── 헤더 영역 ─── -->
     <header class="landing-header">
+        <!-- 인증 UI 컨테이너: auth.js가 로그인 버튼 또는 프로필을 동적 삽입 -->
         <div id="authContainer" class="auth-container">
-            <!-- Injected by auth.js -->
+            <!-- auth.js에 의해 자동 생성됨 -->
         </div>
         <h1>My Developer Tools</h1>
         <p>A collection of useful utilities and applications.</p>
     </header>
 
+    <!-- ─── 메인 콘텐츠: 도구 카드 목록 ─── -->
     <main class="landing-container">
-        <!-- Card 1: Secure Password Generator -->
+
+        <!-- 카드 1: 비밀번호 생성기 -->
         <a href="./generatePassWd/index.html" class="card">
             <div>
                 <h2>Secure Password Generator</h2>
@@ -54,7 +83,7 @@
             </div>
         </a>
 
-        <!-- Card 2: Web Page to Email -->
+        <!-- 카드 2: 웹 페이지 클리퍼 -->
         <a href="./webPageByEmail/index.html" class="card">
             <div>
                 <h2>Web Page to Email</h2>
@@ -68,9 +97,12 @@
         </a>
     </main>
 
-    <!-- [CSP 개선] 인라인 스크립트 제거 → 외부 파일(main.js)로 분리 -->
-    <!-- 3. Main root page script (Auth Guard, Card Click) -->
-    <script src="./js/main.js?v=260220_1736"></script>
+    <!--
+        ─── 메인 페이지 스크립트 ───
+        인증 가드(미로그인 시 카드 클릭 차단) + 토스트 메시지 로직
+        ※ CSP 정책 개선을 위해 인라인 <script> 대신 외부 파일 사용
+    -->
+    <script src="./js/main.js?v=260221_1100"></script>
 </body>
 
 </html>

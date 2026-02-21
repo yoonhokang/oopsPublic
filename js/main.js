@@ -1,60 +1,92 @@
 /**
- * Main Root Script
- * index.html의 인라인 스크립트에서 분리된 파일입니다.
- * [개선] CSP unsafe-inline 의존도 감소를 위해 외부 파일로 분리
+ * ============================================================
+ * 메인 페이지 스크립트 (main.js)
+ * ============================================================
  *
- * - Firebase Auth 상태 리스너 등록
- * - 카드 클릭 시 인증 가드 (미로그인 차단)
+ * 【이 파일의 역할】
+ * 메인 페이지(index.html)에서만 사용되는 로직을 담당합니다.
+ * 원래 index.html 안에 <script> 태그로 직접 작성되어 있던 코드를
+ * CSP(Content Security Policy) 보안 정책 개선을 위해 외부 파일로 분리했습니다.
+ *
+ * 【주요 기능】
+ * 1. 인증 가드: 로그인하지 않은 사용자가 도구 페이지에 접근하는 것을 차단
+ * 2. 토스트 메시지: 브라우저 기본 alert() 대신 세련된 알림 표시
+ *
+ * 【의존성】
+ * - firebase-app.js, firebase-auth.js (로그인 상태 확인)
+ * - api-config.js (Firebase 설정)
+ * - auth.js (registerAuthListener 함수 제공)
  */
 
 (function () {
     "use strict";
 
+    // ─── 토스트 메시지 함수 ──────────────────────────────
     /**
-     * [UX-02] 토스트 메시지 표시 (alert() 대체)
+     * 화면 상단 중앙에 토스트(Toast) 알림을 표시합니다.
+     *
+     * 【토스트란?】
+     * 일정 시간 후 자동으로 사라지는 작은 알림 메시지입니다.
+     * 브라우저의 alert()과 달리 사용자의 작업을 방해하지 않습니다.
+     *
+     * 【동작 원리】
+     * 1. div 요소를 생성하고 body에 추가
+     * 2. CSS 클래스(.show)를 추가하여 페이드인 애니메이션 실행
+     * 3. 지정된 시간 후 .show 클래스를 제거하여 페이드아웃
+     * 4. 애니메이션 완료 후 DOM에서 요소 제거
+     *
      * @param {string} message - 표시할 메시지
-     * @param {number} duration - 표시 시간(ms), 기본 3초
+     * @param {number} duration - 표시 시간(밀리초), 기본 3000ms(3초)
      */
     function showToast(message, duration = 3000) {
-        // 기존 토스트 제거
+        // 이미 표시 중인 토스트가 있으면 제거 (중복 방지)
         const existing = document.getElementById('globalToast');
         if (existing) existing.remove();
 
+        // 토스트 요소 생성
         const toast = document.createElement('div');
         toast.id = 'globalToast';
-        toast.className = 'toast-notification';
+        toast.className = 'toast-notification'; // css/style.css에 스타일 정의됨
         toast.textContent = message;
         document.body.appendChild(toast);
 
-        // 표시 애니메이션
+        // requestAnimationFrame: 다음 화면 갱신 시점에 실행
+        // → appendChild 직후 바로 클래스를 추가하면 브라우저가 트랜지션을 감지하지 못할 수 있음
         requestAnimationFrame(() => {
-            toast.classList.add('show');
+            toast.classList.add('show'); // 페이드인 트리거
         });
 
-        // 자동 숨김
+        // 일정 시간 후 자동 숨김
         setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 300);
+            toast.classList.remove('show'); // 페이드아웃 트리거
+            setTimeout(() => toast.remove(), 300); // 애니메이션 완료 후 DOM에서 제거
         }, duration);
     }
 
+    // ─── DOMContentLoaded 이벤트 ─────────────────────────
+    // HTML 문서가 완전히 파싱되면 실행됩니다.
+    // ※ 이미지나 CSS 로딩 완료를 기다리지 않으므로 빠르게 실행됩니다.
     document.addEventListener('DOMContentLoaded', () => {
-        // Auth 상태 리스너 등록
+
+        // ── 인증 상태 리스너 등록 ──
+        // auth.js에서 정의한 registerAuthListener() 함수를 호출합니다.
+        // 사용자가 로그인/로그아웃할 때마다 콜백이 호출됩니다.
         if (window.registerAuthListener) {
             window.registerAuthListener((user) => {
-                console.log("[Main Page] User state:", user ? "Logged In" : "Logged Out");
+                console.log("[메인 페이지] 사용자 상태:", user ? "로그인됨" : "미로그인");
             });
         }
 
-        // Auth Guard for Navigation Cards
+        // ── 인증 가드 (Auth Guard) ──
+        // 메인 페이지의 카드(.card)를 클릭했을 때,
+        // 로그인되어 있지 않으면 페이지 이동을 차단합니다.
         const cards = document.querySelectorAll('.card');
         cards.forEach(card => {
             card.addEventListener('click', (e) => {
                 const user = firebase.auth().currentUser;
 
                 if (!user) {
-                    e.preventDefault(); // Stop navigation
-                    // [UX-02] alert() 대체 → 토스트 메시지
+                    e.preventDefault(); // 기본 동작(페이지 이동) 차단
                     showToast("🔒 로그인이 필요합니다. Google 로그인 후 이용해주세요.");
                 }
             });

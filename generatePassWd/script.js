@@ -1,34 +1,58 @@
-// Hybrid Auth Migration
-// Dependencies: firebase-auth.js, js/api-config.js, js/auth.js
+/**
+ * ============================================================
+ * 보안 비밀번호 생성기 (generatePassWd/script.js)
+ * ============================================================
+ *
+ * 【이 파일의 역할】
+ * Google 뉴스 헤드라인에서 단어를 추출하여 기억하기 쉬운 비밀번호를 생성합니다.
+ * 모든 처리는 브라우저(클라이언트)에서만 이루어지며, 서버로 비밀번호가 전송되지 않습니다.
+ *
+ * 【비밀번호 생성 원리】
+ * 1. Google News RSS → 뉴스 헤드라인 가져오기
+ * 2. 헤드라인에서 단어 추출 → 각 단어의 첫 글자(또는 N번째 글자) 수집
+ * 3. 수집한 글자들을 조합 + 특수문자 추가 → 비밀번호 완성
+ * 4. 원본 문장을 함께 표시 → "Oh, 이 문장의 첫 글자!"로 기억
+ *
+ * 【핵심 함수 흐름】
+ * generatePassword() ─→ fetchNewsSentence() ─→ extractPasswordCharacters() ─→ 화면 렌더링
+ *
+ * 【의존성】
+ * - firebase-auth.js, api-config.js, auth.js (인증)
+ * - rss2json.com API (뉴스 RSS를 JSON으로 변환하는 외부 서비스)
+ *
+ * 【IIFE 패턴】
+ * 전체 코드가 (function() { ... })() 안에 있어 전역 변수 오염을 방지합니다.
+ * 외부에서 호출할 필요가 없으므로 window에 아무것도 등록하지 않습니다.
+ */
 
 (function () {
     "use strict";
 
-    let currentSourceSentence = ""; // Store for email
+    // ─── 상태 변수 ───────────────────────────────────────
+    let currentSourceSentence = ""; // 비밀번호 생성에 사용된 원본 문장 (이메일 전송용)
 
-    // Auth Guard & UI
+    // ─── 인증 가드 ───────────────────────────────────────
+    // 로그인하지 않은 사용자는 메인 페이지로 리다이렉트
     if (window.registerAuthListener) {
         window.registerAuthListener(user => {
             if (user) {
-                // User is logged in
+                // 로그인 상태 — 정상 사용 가능
             } else {
-                // Strict Auth Redirect for Generator as requested
+                // 미로그인 — 메인 페이지로 강제 이동
                 window.location.replace("../index.html");
             }
         });
     }
 
-    // [Core Logic - Unchanged]
-    // 비밀번호 생성 로직은 클라이언트 사이드 연산이므로 변경 없음.
-
+    // ─── 문자 풀 (비밀번호에 사용될 문자 집합) ──────────
     const CHARS = {
-        upper: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-        lower: "abcdefghijklmnopqrstuvwxyz",
-        digit: "0123456789",
-        special: "!@#$%^&*"
+        upper: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",    // 대문자
+        lower: "abcdefghijklmnopqrstuvwxyz",    // 소문자
+        digit: "0123456789",                     // 숫자
+        special: "!@#$%^&*"                      // 특수문자
     };
 
-    // Fallback Word Pool
+    // ─── 비상용 단어 풀 (뉴스 가져오기 실패 시 사용) ────
     const FALLBACK_WORDS = [
         "Apple", "Brave", "Cloud", "Delta", "Eagle", "Flame", "Grape", "Hazel", "Igloo", "Joker",
         "Karma", "Lemon", "Mango", "Noble", "Ocean", "Piano", "Quest", "Radio", "Solar", "Tiger",
@@ -36,15 +60,22 @@
     ];
 
     /**
-     * Generates a secure random number within a range.
-     * [STAB-02] Rejection Sampling으로 모듈러 바이어스 제거
-     * @param {number} max - The upper bound (exclusive).
-     * @returns {number} A random integer between 0 and max-1.
+     * 보안 난수 생성 (Rejection Sampling 알고리즘)
+     *
+     * 【왜 Math.random()을 쓰지 않는가?】
+     * Math.random()은 예측 가능한 의사 난수(PRNG)를 생성하므로 보안 용도에 부적합합니다.
+     * window.crypto.getRandomValues()는 운영체제의 엔트로피 소스를 사용하는 CSPRNG입니다.
+     *
+     * 【Rejection Sampling이란?】
+     * 단순히 (난수 % max)를 하면 작은 값이 더 자주 나옵니다(모듈러 바이어스).
+     * max의 배수로 범위를 제한하고, 범위 밖의 값은 버리고 다시 뽑습니다.
+     *
+     * @param {number} max - 상한값 (0 이상 max 미만의 정수 반환)
+     * @returns {number} 균등 분포의 안전한 난수
      */
     function secureRandom(max) {
         if (max <= 0) return 0;
         const array = new Uint32Array(1);
-        // max의 배수 중 0x100000000 이하 최대값을 한계로 설정
         const limit = Math.floor(0x100000000 / max) * max;
         do {
             window.crypto.getRandomValues(array);
@@ -53,18 +84,20 @@
     }
 
     /**
-     * Logs messages to the specific debug console and browser console.
-     * [MAINT-01] window.Logger 중앙 로깅 시스템과도 연동
-     * @param {string} message - The message to log.
-     * @param {string} [type='info'] - Log type: 'info', 'warn', 'error', 'success'.
+     * 페이지 내 디버그 콘솔에 로그를 출력합니다.
+     * window.Logger(중앙 로거)가 있으면 그쪽에도 전달합니다.
+     *
+     * @param {string} message - 로그 메시지
+     * @param {string} type - 로그 유형: 'info', 'warn', 'error', 'success'
      */
     function log(message, type = 'info') {
-        // 중앙 Logger로 전달
+        // 중앙 Logger(debug-monitor.js)로 전달
         if (window.Logger) {
             const fn = window.Logger[type] || window.Logger.info;
             fn(message);
         }
 
+        // 페이지 내 디버그 콘솔에 출력
         const consoleEl = document.getElementById('debugConsole');
         if (consoleEl) {
             const entry = document.createElement('div');

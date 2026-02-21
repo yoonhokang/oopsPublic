@@ -1,45 +1,76 @@
-// Web Page to Email & Board Tool
-// - Authentication: Firebase SDK (Auth only)
-// - Database: REST API (Firestore via fetch)
-// - [260220_1736] Security: sanitizeHtml(), 커스텀 모달, window 전역 노출 최소화
+/**
+ * ============================================================
+ * 웹 페이지 클리퍼 & 이메일 전송기 (webPageByEmail/script.js)
+ * ============================================================
+ *
+ * 【이 파일의 역할】
+ * 1. URL을 입력하면 해당 웹 페이지의 콘텐츠를 가져와(fetch) 이메일로 전송
+ * 2. 가져온 콘텐츠를 Firestore 데이터베이스에 저장하는 "클리핑" 기능
+ * 3. 저장된 포스트를 불러오고 검색/삭제하는 게시판 기능
+ *
+ * 【핵심 기술 스택】
+ * - CORS 프록시: 같은 출처가 아닌 외부 사이트의 HTML을 가져오기 위해
+ *   corsproxy.io, allorigins.win 등의 프록시 서비스 사용
+ * - Firestore REST API: Firebase SDK 대신 fetch()로 HTTP 요청을 보내
+ *   데이터를 읽고(GET), 쓰고(POST), 삭제(DELETE)
+ * - HTML Sanitization: XSS(스크립트 주입) 공격을 방지하기 위해
+ *   데이터베이스에서 꺼낸 HTML을 렌더링 전에 정제
+ *
+ * 【핵심 함수 흐름】
+ * ┌─ processAndSend() ─→ fetchWithFallback() ─→ cleanHtml() ─→ 클립보드 복사 + 이메일
+ * ├─ saveToBoard()     ─→ fetchWithFallback() ─→ cleanHtml() ─→ REST POST(Firestore 저장)
+ * ├─ loadBoardREST()   ─→ REST POST(runQuery) ─→ renderBoard() ─→ sanitizeHtml()
+ * └─ deletePost()      ─→ showConfirmModal() ─→ REST DELETE(Firestore 삭제)
+ *
+ * 【의존성】
+ * - firebase-auth.js, api-config.js, auth.js (인증 + 토큰)
+ * - debug-monitor.js (window.Logger 로깅)
+ */
 
 (function () {
     "use strict";
 
+    // ─── 디버그 모드 확인 ────────────────────────────────
     const isDebug = (window.API_CONFIG && window.API_CONFIG.debugMode) || false;
 
-    // Global State
-    let loadedPosts = []; // Stores current posts for client-side search
-    let currentUser = null; // Store user for REST calls
-    let pollingInterval = null; // For manual refreshing since we lost real-time
+    // ─── 상태 변수 ───────────────────────────────────────
+    let loadedPosts = [];       // 현재 로드된 게시물 배열 (검색용 클라이언트 캐시)
+    let currentUser = null;     // 로그인된 사용자 객체 (REST API 호출 시 사용)
+    let pollingInterval = null; // 자동 새로고침 간격 타이머 (미사용 — 수동 새로고침 방식)
 
-    // Auth Guard & UI
+    // ─── 인증 가드 & 초기화 ─────────────────────────────
+    // 로그인 상태 변화 시 자동 실행되는 콜백
     if (window.registerAuthListener) {
         window.registerAuthListener(user => {
-            if (window.Logger && isDebug) window.Logger.info(`AuthStateChanged: ${user ? user.email : "No User"}`);
+            if (window.Logger && isDebug) window.Logger.info(`인증 상태 변경: ${user ? user.email : "미로그인"}`);
             currentUser = user;
 
             if (!user) {
-                // Not logged in -> Redirect
+                // 미로그인 → 메인 페이지로 강제 이동
                 window.location.replace("../index.html");
             } else {
-                // Logged in -> Load Board via REST
+                // 로그인 완료 → 게시판 데이터 로드 시작
                 initBoardPolling(user);
             }
         });
     }
 
-    // [STAB-01] DOM 참조를 변수 선언만 수행 (실제 참조는 DOMContentLoaded에서)
-    let statusArea = null;
-    let sendBtn = null;
-    let saveBtn = null;
-    let urlInput = null;
-    let debugConsole = null;
+    // ─── DOM 요소 참조 (DOMContentLoaded에서 초기화) ─────
+    // HTML 파싱 전에는 DOM에 접근할 수 없으므로 변수 선언만 수행
+    let statusArea = null;    // 상태 메시지 표시 영역
+    let sendBtn = null;       // "Capture & Email" 버튼
+    let saveBtn = null;       // "Save to Board" 버튼
+    let urlInput = null;      // URL 입력 필드
+    let debugConsole = null;  // 디버그 콘솔 영역
 
-    // 검색 입력 필드 주입은 DOMContentLoaded에서 수행 (STAB-01)
-
-    // Helper: Log
+    // ─── 로깅 함수 ──────────────────────────────────────
+    /**
+     * 페이지 내 디버그 콘솔 + 중앙 Logger에 로그를 출력합니다.
+     * @param {string} message - 로그 메시지
+     * @param {string} type - 'info', 'warn', 'error', 'success'
+     */
     function log(message, type = 'info') {
+        // 중앙 Logger(debug-monitor.js)로 전달
         if (window.Logger) {
             type === 'error' ? window.Logger.error(message) :
                 type === 'success' ? window.Logger.success(message) :
@@ -48,6 +79,7 @@
             console.log(`[${type}] ${message}`);
         }
 
+        // 페이지 내 디버그 콘솔에 출력
         if (debugConsole) {
             const entry = document.createElement('div');
             entry.className = `log-entry log-${type}`;
